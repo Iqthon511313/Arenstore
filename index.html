@@ -1,553 +1,408 @@
-import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  query 
-} from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { 
-  Plus, 
-  Search, 
-  Trash2, 
-  Edit3, 
-  Send, 
-  DollarSign, 
-  Users, 
-  AlertCircle, 
-  Wallet,
-  X,
-  CheckCircle,
-  Clock
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>آرين ستور - Arin Store Cloud</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        body { font-family: 'Cairo', sans-serif; background-color: #f8fafc; }
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        .card-anim { transition: all 0.3s ease; }
+        .card-anim:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body class="pb-10">
 
-// Firebase Configuration from environment
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-v5';
+    <div id="loader" class="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-900 mb-4"></div>
+        <p class="text-indigo-900 font-bold">جاري الاتصال بالسحابة...</p>
+    </div>
 
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('subs');
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  
-  // Modals state
-  const [showSubModal, setShowSubModal] = useState(false);
-  const [showExpModal, setShowExpModal] = useState(false);
-  const [editingSub, setEditingSub] = useState(null);
+    <header class="bg-indigo-900 text-white sticky top-0 z-50 shadow-lg">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-store text-2xl"></i>
+                <h1 class="text-xl font-black">آرين ستور</h1>
+            </div>
+            <div class="flex bg-indigo-800 p-1 rounded-2xl">
+                <button onclick="switchTab('subs')" id="btn-subs" class="px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all">الاشتراكات</button>
+                <button onclick="switchTab('exps')" id="btn-exps" class="px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all">الصرفيات</button>
+            </div>
+        </div>
+    </header>
 
-  // Form states
-  const [formData, setFormData] = useState({
-    name: '', email: '', service: 'ChatGPT', plan: 'monthly', 
-    contact: '', price: '', isPaid: 'true', expiry: '', link: ''
-  });
-  const [expFormData, setExpFormData] = useState({ title: '', amount: '' });
+    <main class="container mx-auto p-4 max-w-6xl">
+        <!-- Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 my-6">
+            <div class="bg-white p-5 rounded-[2rem] shadow-sm border-r-4 border-blue-500">
+                <p class="text-gray-400 text-[10px] font-bold uppercase mb-1">النشطين</p>
+                <h3 id="stat-active" class="text-2xl font-black text-slate-800">0</h3>
+            </div>
+            <div class="bg-white p-5 rounded-[2rem] shadow-sm border-r-4 border-orange-500">
+                <p class="text-gray-400 text-[10px] font-bold uppercase mb-1">قرب ينتهي</p>
+                <h3 id="stat-soon" class="text-2xl font-black text-slate-800">0</h3>
+            </div>
+            <div class="bg-white p-5 rounded-[2rem] shadow-sm border-r-4 border-emerald-500">
+                <p class="text-gray-400 text-[10px] font-bold uppercase mb-1">صافي الربح</p>
+                <h3 id="stat-profit" class="text-2xl font-black text-emerald-600">$0</h3>
+            </div>
+            <div class="bg-white p-5 rounded-[2rem] shadow-sm border-r-4 border-red-500">
+                <p class="text-gray-400 text-[10px] font-bold uppercase mb-1">إجمالي الصرف</p>
+                <h3 id="stat-exps" class="text-2xl font-black text-red-600">$0</h3>
+            </div>
+        </div>
 
-  // 1. Auth Logic (Rule 3)
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+        <!-- Subs View -->
+        <div id="view-subs">
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    <button onclick="setFilter('all')" class="filter-btn px-6 py-2 rounded-full bg-indigo-900 text-white text-xs font-bold" data-f="all">الكل</button>
+                    <button onclick="setFilter('active')" class="filter-btn px-6 py-2 rounded-full bg-white text-gray-500 text-xs font-bold border" data-f="active">النشطين</button>
+                    <button onclick="setFilter('soon')" class="filter-btn px-6 py-2 rounded-full bg-white text-gray-500 text-xs font-bold border" data-f="soon">قرب ينتهي</button>
+                    <button onclick="setFilter('unpaid')" class="filter-btn px-6 py-2 rounded-full bg-white text-gray-500 text-xs font-bold border" data-f="unpaid">غير مسدد</button>
+                </div>
+                <button onclick="openSubModal()" class="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg hover:bg-indigo-700 flex items-center gap-2">
+                    <i class="fas fa-plus"></i> إضافة مشترك
+                </button>
+            </div>
+
+            <div class="relative mb-8">
+                <i class="fas fa-search absolute right-5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="searchInput" oninput="render()" placeholder="ابحث باسم الزبون أو الحساب..." class="w-full pr-14 pl-6 py-4 rounded-[1.5rem] bg-white border-none shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+
+            <div id="subs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </div>
+
+        <!-- Expenses View -->
+        <div id="view-exps" class="hidden">
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-black">سجل الصرفيات</h2>
+                    <button onclick="openExpModal()" class="bg-red-500 text-white px-6 py-2 rounded-xl font-bold">إضافة صرفية</button>
+                </div>
+                <div id="exps-list"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Sub Modal -->
+    <div id="subModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[100] backdrop-blur-sm">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <div class="bg-indigo-900 p-6 text-white flex justify-between items-center">
+                <h2 id="modalTitle" class="text-xl font-black">إضافة مشترك</h2>
+                <button onclick="closeModal('subModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="subForm" onsubmit="handleSubSubmit(event)" class="p-8 space-y-4 max-h-[80vh] overflow-y-auto custom-scroll">
+                <input type="hidden" id="editId">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">اسم الزبون</label>
+                        <input id="in-name" required class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">إيميل الحساب</label>
+                        <input id="in-email" type="email" required class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">الخدمة</label>
+                        <select id="in-service" class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                            <option>ChatGPT</option><option>Netflix</option><option>YouTube Premium</option><option>Canva Pro</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">الخطة</label>
+                        <select id="in-plan" onchange="toggleDate()" class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                            <option value="monthly">شهري</option><option value="yearly">سنوي</option><option value="custom">مخصصة</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">التلجرام أو الرقم (سيضاف +964)</label>
+                        <input id="in-contact" required placeholder="مثال: 7701234567" class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">السعر ($)</label>
+                        <input id="in-price" type="number" step="0.01" required class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="text-[10px] font-bold text-gray-400 mr-2">حالة الدفع</label>
+                        <select id="in-paid" class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                            <option value="true">واصل ✅</option><option value="false">مطلوب ❌</option>
+                        </select>
+                    </div>
+                    <div id="customDate" class="col-span-2 hidden">
+                        <label class="text-[10px] font-bold text-indigo-600 mr-2">تاريخ الانتهاء</label>
+                        <input id="in-expiry" type="date" class="w-full p-3 bg-indigo-50 rounded-xl outline-none">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-indigo-900 text-white py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-black">حفظ سحابي</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Exp Modal -->
+    <div id="expModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[100] backdrop-blur-sm">
+        <div class="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div class="bg-red-600 p-6 text-white flex justify-between items-center">
+                <h2 class="text-xl font-black">إضافة صرفية</h2>
+                <button onclick="closeModal('expModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleExpSubmit(event)" class="p-8 space-y-4">
+                <input id="ex-title" placeholder="بيان الصرف" required class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                <input id="ex-amount" type="number" step="0.01" placeholder="المبلغ ($)" required class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
+                <button type="submit" class="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">تسجيل</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-cloud';
+
+        let subscriptions = [];
+        let expenses = [];
+        let currentFilter = 'all';
+
+        // Auth Setup
+        async function init() {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+            
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    setupListeners();
+                    document.getElementById('loader').classList.add('hidden');
+                }
+            });
         }
-      } catch (error) {
-        console.error("Auth Error:", error);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
-    return () => unsubscribe();
-  }, []);
 
-  // 2. Data Fetching (Rule 1 & 2)
-  useEffect(() => {
-    if (!user) return;
+        function setupListeners() {
+            const subsRef = collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions');
+            const expsRef = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
 
-    const subsRef = collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions');
-    const expsRef = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
+            onSnapshot(subsRef, (snap) => {
+                subscriptions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                render();
+            }, (err) => console.error(err));
 
-    const unsubSubs = onSnapshot(subsRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setSubscriptions(data);
-      setLoading(false);
-    }, (err) => console.error("Subs fetch error:", err));
+            onSnapshot(expsRef, (snap) => {
+                expenses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                render();
+            }, (err) => console.error(err));
+        }
 
-    const unsubExps = onSnapshot(expsRef, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setExpenses(data);
-    }, (err) => console.error("Exps fetch error:", err));
+        // Exposed Functions
+        window.switchTab = (tab) => {
+            document.getElementById('view-subs').classList.toggle('hidden', tab !== 'subs');
+            document.getElementById('view-exps').classList.toggle('hidden', tab !== 'exps');
+            document.getElementById('btn-subs').className = tab === 'subs' ? 'px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all' : 'px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all';
+            document.getElementById('btn-exps').className = tab === 'exps' ? 'px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all' : 'px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all';
+        };
 
-    return () => {
-      unsubSubs();
-      unsubExps();
-    };
-  }, [user]);
+        window.openSubModal = (editData = null) => {
+            const form = document.getElementById('subForm');
+            form.reset();
+            document.getElementById('editId').value = editData ? editData.id : '';
+            document.getElementById('modalTitle').innerText = editData ? 'تعديل المشترك' : 'إضافة مشترك';
+            
+            if (editData) {
+                document.getElementById('in-name').value = editData.name;
+                document.getElementById('in-email').value = editData.email;
+                document.getElementById('in-service').value = editData.service;
+                document.getElementById('in-plan').value = editData.plan;
+                document.getElementById('in-contact').value = editData.contact;
+                document.getElementById('in-price').value = editData.price;
+                document.getElementById('in-paid').value = editData.isPaid.toString();
+                if (editData.plan === 'custom') {
+                    document.getElementById('customDate').classList.remove('hidden');
+                    document.getElementById('in-expiry').value = editData.expiry;
+                }
+            }
+            
+            document.getElementById('subModal').classList.remove('hidden');
+            document.getElementById('subModal').classList.add('flex');
+        };
 
-  // Handle Subscription Submit (Add or Edit)
-  const handleSubSubmit = async (e) => {
-    e.preventDefault();
-    if (!user) return;
+        window.closeModal = (id) => {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById(id).classList.remove('flex');
+        };
 
-    let expiryDate = formData.expiry;
-    if (formData.plan !== 'custom') {
-      const now = new Date();
-      formData.plan === 'monthly' ? now.setMonth(now.getMonth() + 1) : now.setFullYear(now.getFullYear() + 1);
-      expiryDate = now.toISOString().split('T')[0];
-    }
+        window.toggleDate = () => {
+            const plan = document.getElementById('in-plan').value;
+            document.getElementById('customDate').classList.toggle('hidden', plan !== 'custom');
+        };
 
-    let contact = formData.contact.trim();
-    if (/^\d+$/.test(contact)) {
-      if (contact.startsWith('0')) contact = contact.substring(1);
-      if (!contact.startsWith('964')) contact = '964' + contact;
-      contact = '+' + contact;
-    }
+        window.handleSubSubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editId').value;
+            const plan = document.getElementById('in-plan').value;
+            let expiry = document.getElementById('in-expiry').value;
 
-    const subData = {
-      name: formData.name,
-      email: formData.email,
-      service: formData.service,
-      plan: formData.plan,
-      contact: contact,
-      price: parseFloat(formData.price) || 0,
-      isPaid: formData.isPaid === 'true',
-      expiry: expiryDate,
-      link: formData.link,
-      updatedAt: new Date().toISOString()
-    };
+            if (plan !== 'custom') {
+                const date = new Date();
+                plan === 'monthly' ? date.setMonth(date.getMonth() + 1) : date.setFullYear(date.getFullYear() + 1);
+                expiry = date.toISOString().split('T')[0];
+            }
 
-    try {
-      if (editingSub) {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'subscriptions', editingSub.id);
-        await updateDoc(docRef, subData);
-      } else {
-        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions');
-        await addDoc(colRef, { ...subData, createdAt: new Date().toISOString() });
-      }
-      setShowSubModal(false);
-      setEditingSub(null);
-      setFormData({ name: '', email: '', service: 'ChatGPT', plan: 'monthly', contact: '', price: '', isPaid: 'true', expiry: '', link: '' });
-    } catch (err) {
-      console.error("Error saving sub:", err);
-    }
-  };
+            let contact = document.getElementById('in-contact').value.trim();
+            if (/^\d+$/.test(contact)) {
+                if (contact.startsWith('0')) contact = contact.substring(1);
+                if (!contact.startsWith('964')) contact = '964' + contact;
+                contact = '+' + contact;
+            }
 
-  const handleExpSubmit = async (e) => {
-    e.preventDefault();
-    if (!user) return;
-    try {
-      const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
-      await addDoc(colRef, {
-        title: expFormData.title,
-        amount: parseFloat(expFormData.amount) || 0,
-        date: new Date().toISOString()
-      });
-      setShowExpModal(false);
-      setExpFormData({ title: '', amount: '' });
-    } catch (err) {
-      console.error("Error saving exp:", err);
-    }
-  };
+            const data = {
+                name: document.getElementById('in-name').value,
+                email: document.getElementById('in-email').value,
+                service: document.getElementById('in-service').value,
+                plan: plan,
+                contact: contact,
+                price: parseFloat(document.getElementById('in-price').value),
+                isPaid: document.getElementById('in-paid').value === 'true',
+                expiry: expiry,
+                updatedAt: new Date().toISOString()
+            };
 
-  const deleteItem = async (type, id) => {
-    if (!window.confirm("هل أنت متأكد من الحذف النهائي؟")) return;
-    try {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', type === 'sub' ? 'subscriptions' : 'expenses', id);
-      await deleteDoc(docRef);
-    } catch (err) {
-      console.error("Error deleting:", err);
-    }
-  };
+            if (id) {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subscriptions', id), data);
+            } else {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions'), data);
+            }
+            window.closeModal('subModal');
+        };
 
-  const openEdit = (sub) => {
-    setEditingSub(sub);
-    setFormData({
-      name: sub.name,
-      email: sub.email,
-      service: sub.service,
-      plan: sub.plan,
-      contact: sub.contact,
-      price: sub.price.toString(),
-      isPaid: sub.isPaid.toString(),
-      expiry: sub.expiry,
-      link: sub.link || ''
-    });
-    setShowSubModal(true);
-  };
+        window.handleExpSubmit = async (e) => {
+            e.preventDefault();
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), {
+                title: document.getElementById('ex-title').value,
+                amount: parseFloat(document.getElementById('ex-amount').value),
+                date: new Date().toISOString()
+            });
+            window.closeModal('expModal');
+        };
 
-  const formatWhatsApp = (sub) => {
-    const today = new Date();
-    const expDate = new Date(sub.expiry);
-    const diffDays = Math.ceil((expDate - today) / (1000 * 3600 * 24));
-    
-    const message = `*آرين ستور - تذكير بتجديد الاشتراك* 👑
+        window.deleteItem = async (type, id) => {
+            if (confirm('حذف نهائي؟')) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', type === 'sub' ? 'subscriptions' : 'expenses', id));
+            }
+        };
 
-عزيزي الزبون: *${sub.name}*
-نود تذكيرك بأن اشتراكك في خدمة *${sub.service}* أوشك على الانتهاء.
+        window.setFilter = (f) => {
+            currentFilter = f;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                const isActive = btn.dataset.f === f;
+                btn.className = `filter-btn px-6 py-2 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-indigo-900 text-white' : 'bg-white text-gray-500 border border-gray-100'}`;
+            });
+            render();
+        };
 
-🗓 تاريخ الانتهاء: ${expDate.toLocaleDateString('ar-EG')}
-⏳ المتبقي: ${diffDays > 0 ? diffDays + ' يوم' : 'منتهي'}
-💰 المبلغ المطلوب: $${sub.price.toFixed(2)}
+        window.openExpModal = () => {
+            document.getElementById('expModal').classList.remove('hidden');
+            document.getElementById('expModal').classList.add('flex');
+        };
 
-يرجى التواصل معنا للتجديد وضمان عدم توقف الخدمة. شكراً لثقتكم بنا! ✨`;
+        window.formatWhatsApp = (id) => {
+            const s = subscriptions.find(x => x.id === id);
+            const today = new Date();
+            const expDate = new Date(s.expiry);
+            const diff = Math.ceil((expDate - today) / (1000 * 3600 * 24));
+            
+            const msg = `*آرين ستور - تذكير* 👑\n\nعزيزي *${s.name}*\nاشتراكك في *${s.service}* أوشك على الانتهاء.\n\n🗓 ينتهي يوم: ${expDate.toLocaleDateString('ar-EG')}\n⏳ المتبقي: ${diff > 0 ? diff + ' يوم' : 'منتهي'}\n💰 المطلوب: $${s.price.toFixed(2)}\n\nيرجى التواصل للتجديد ✨`;
+            
+            const link = s.contact.startsWith('+') 
+                ? `https://wa.me/${s.contact.replace('+', '')}?text=${encodeURIComponent(msg)}`
+                : `https://t.me/${s.contact.replace('@', '')}`;
+            window.open(link, '_blank');
+        };
 
-    if (sub.contact.startsWith('+')) {
-      window.open(`https://wa.me/${sub.contact.replace('+', '')}?text=${encodeURIComponent(message)}`, '_blank');
-    } else {
-      window.open(`https://t.me/${sub.contact.replace('@', '')}`, '_blank');
-    }
-  };
+        window.render = () => {
+            const grid = document.getElementById('subs-grid');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const today = new Date();
 
-  // Calculations
-  const today = new Date();
-  const filteredSubs = subscriptions.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.email.toLowerCase().includes(search.toLowerCase());
-    const expDate = new Date(s.expiry);
-    const diff = (expDate - today) / (1000 * 3600 * 24);
-    
-    if (filter === 'active') return matchesSearch && expDate > today;
-    if (filter === 'soon') return matchesSearch && diff <= 3 && diff > 0;
-    if (filter === 'unpaid') return matchesSearch && !s.isPaid;
-    return matchesSearch;
-  });
+            const filtered = subscriptions.filter(s => {
+                const match = s.name.toLowerCase().includes(search) || s.email.toLowerCase().includes(search);
+                const expDate = new Date(s.expiry);
+                const diff = (expDate - today) / (1000 * 3600 * 24);
+                if (currentFilter === 'active') return match && expDate > today;
+                if (currentFilter === 'soon') return match && diff <= 3 && diff > 0;
+                if (currentFilter === 'unpaid') return match && !s.isPaid;
+                return match;
+            });
 
-  const activeCount = subscriptions.filter(s => new Date(s.expiry) > today).length;
-  const soonCount = subscriptions.filter(s => {
-    const d = (new Date(s.expiry) - today) / (1000 * 3600 * 24);
-    return d > 0 && d <= 3;
-  }).length;
-  const totalRev = subscriptions.filter(s => s.isPaid).reduce((acc, curr) => acc + curr.price, 0);
-  const totalExp = expenses.reduce((acc, curr) => acc + curr.amount, 0);
-
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center font-['Cairo']">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-700 mx-auto mb-4"></div>
-        <p className="text-indigo-900 font-bold italic">جاري تحميل البيانات السحابية لآرين ستور...</p>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-['Cairo'] pb-20" dir="rtl">
-      {/* Header */}
-      <header className="bg-indigo-900 text-white shadow-xl sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="bg-white text-indigo-900 p-2 rounded-xl"><Users size={24} /></div>
-            <h1 className="text-xl font-black">آرين ستور</h1>
-          </div>
-          <div className="flex bg-indigo-800/50 p-1 rounded-2xl">
-            <button 
-              onClick={() => setTab('subs')}
-              className={`px-6 py-2 rounded-xl font-bold transition-all ${tab === 'subs' ? 'bg-white text-indigo-900 shadow-md' : 'text-white/70 hover:text-white'}`}
-            >الاشتراكات</button>
-            <button 
-              onClick={() => setTab('exps')}
-              className={`px-6 py-2 rounded-xl font-bold transition-all ${tab === 'exps' ? 'bg-white text-indigo-900 shadow-md' : 'text-white/70 hover:text-white'}`}
-            >الصرفيات</button>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto p-4 max-w-6xl">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 my-6">
-          <StatCard title="النشطين" val={activeCount} color="blue" icon={<Users />} />
-          <StatCard title="قرب ينتهي" val={soonCount} color="orange" icon={<Clock />} />
-          <StatCard title="صافي الربح" val={`$${(totalRev - totalExp).toFixed(2)}`} color="emerald" icon={<Wallet />} />
-          <StatCard title="إجمالي الصرف" val={`$${totalExp.toFixed(2)}`} color="red" icon={<DollarSign />} />
-        </div>
-
-        {tab === 'subs' ? (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                {['all', 'active', 'soon', 'unpaid'].map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    className={`px-6 py-2 rounded-full text-xs font-bold border transition-all whitespace-nowrap ${filter === f ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg' : 'bg-white text-gray-500 border-gray-100 hover:border-indigo-200'}`}
-                  >
-                    {f === 'all' ? 'الكل' : f === 'active' ? 'النشطين' : f === 'soon' ? 'قرب ينتهي' : 'غير مسدد'}
-                  </button>
-                ))}
-              </div>
-              <button 
-                onClick={() => { setEditingSub(null); setFormData({name: '', email: '', service: 'ChatGPT', plan: 'monthly', contact: '', price: '', isPaid: 'true', expiry: '', link: ''}); setShowSubModal(true); }}
-                className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg hover:bg-indigo-700 flex items-center gap-2"
-              >
-                <Plus size={20} /> إضافة مشترك
-              </button>
-            </div>
-
-            <div className="relative group">
-              <Search className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
-              <input 
-                type="text" 
-                placeholder="ابحث باسم الزبون أو الحساب..." 
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pr-14 pl-6 py-4 rounded-3xl bg-white border-none shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredSubs.map(s => (
-                <SubscriptionCard 
-                  key={s.id} 
-                  sub={s} 
-                  onEdit={() => openEdit(s)} 
-                  onDelete={() => deleteItem('sub', s.id)} 
-                  onNotify={() => formatWhatsApp(s)}
-                />
-              ))}
-            </div>
-            {filteredSubs.length === 0 && <div className="text-center py-20 text-gray-400 font-bold">لا يوجد نتائج لعرضها</div>}
-          </div>
-        ) : (
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex justify-between items-center mb-8 px-2">
-              <h2 className="text-xl font-black">سجل المصاريف السحابي</h2>
-              <button onClick={() => setShowExpModal(true)} className="bg-red-500 text-white px-6 py-2 rounded-xl font-bold shadow-md hover:bg-red-600">إضافة صرفية</button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-right">
-                <thead>
-                  <tr className="text-[10px] text-gray-400 border-b font-bold uppercase">
-                    <th className="py-4 px-4">البيان</th>
-                    <th className="text-center">المبلغ</th>
-                    <th className="text-center">التاريخ</th>
-                    <th className="text-center">حذف</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map(e => (
-                    <tr key={e.id} className="border-b border-gray-50 hover:bg-slate-50 transition-colors">
-                      <td className="py-4 px-4 font-bold text-sm text-slate-800">{e.title}</td>
-                      <td className="text-center font-black text-red-600 text-base">${e.amount.toFixed(2)}</td>
-                      <td className="text-center text-xs text-gray-400">{new Date(e.date).toLocaleDateString('ar-EG')}</td>
-                      <td className="text-center">
-                        <button onClick={() => deleteItem('exp', e.id)} className="text-gray-200 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* Subscription Modal */}
-      {showSubModal && (
-        <div className="fixed inset-0 bg-indigo-950/60 flex items-center justify-center p-4 z-[100] backdrop-blur-md">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="bg-indigo-900 p-6 text-white flex justify-between items-center">
-              <h2 className="text-xl font-black">{editingSub ? 'تعديل بيانات المشترك' : 'اشتراك سحابي جديد'}</h2>
-              <button onClick={() => setShowSubModal(false)} className="hover:rotate-90 transition-transform"><X /></button>
-            </div>
-            <form onSubmit={handleSubSubmit} className="p-8 space-y-4 max-h-[80vh] overflow-y-auto custom-scroll">
-              <div className="grid grid-cols-2 gap-4">
-                <InputGroup label="اسم الزبون" id="name" val={formData.name} onChange={(v) => setFormData({...formData, name: v})} required />
-                <InputGroup label="الإيميل" id="email" type="email" val={formData.email} onChange={(v) => setFormData({...formData, email: v})} required />
+            grid.innerHTML = filtered.map(s => {
+                const expDate = new Date(s.expiry);
+                const diff = Math.ceil((expDate - today) / (1000 * 3600 * 24));
+                const isExpired = diff <= 0;
                 
-                <div className="col-span-1">
-                  <label className="text-[10px] font-bold text-gray-400 mr-2 block mb-1">الخدمة</label>
-                  <select 
-                    value={formData.service} 
-                    onChange={(e) => setFormData({...formData, service: e.target.value})}
-                    className="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option>ChatGPT</option><option>Netflix</option><option>YouTube Premium</option><option>Canva Pro</option><option>Discord Nitro</option><option>Spotify</option>
-                  </select>
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[10px] font-bold text-gray-400 mr-2 block mb-1">الخطة</label>
-                  <select 
-                    value={formData.plan} 
-                    onChange={(e) => setFormData({...formData, plan: e.target.value})}
-                    className="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="monthly">شهري</option><option value="yearly">سنوي</option><option value="custom">مدة مخصصة</option>
-                  </select>
-                </div>
+                return `
+                <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50 card-anim relative overflow-hidden">
+                    ${diff <= 3 && diff > 0 ? '<div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] px-4 py-1 rounded-bl-2xl font-black">قرب ينتهي</div>' : ''}
+                    ${isExpired ? '<div class="absolute top-0 right-0 bg-red-600 text-white text-[10px] px-4 py-1 rounded-bl-2xl font-black">منتهي</div>' : ''}
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex gap-3">
+                            <div class="w-12 h-12 bg-indigo-50 text-indigo-900 rounded-xl flex items-center justify-center font-black text-xl">${s.name[0]}</div>
+                            <div>
+                                <h4 class="font-bold text-slate-800">${s.name}</h4>
+                                <p class="text-[10px] text-gray-400 font-bold tracking-wider">${s.service}</p>
+                            </div>
+                        </div>
+                        <div class="text-left">
+                            <div class="text-lg font-black text-slate-900">$${s.price.toFixed(2)}</div>
+                            <span class="text-[9px] px-2 py-0.5 rounded-full font-bold ${s.isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600 animate-pulse'}">${s.isPaid ? 'واصل' : 'مطلوب'}</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 p-4 rounded-2xl mb-4 flex justify-between items-center text-xs">
+                        <span class="text-gray-400">المتبقي:</span>
+                        <span class="font-black ${isExpired ? 'text-red-600' : 'text-indigo-700'}">${isExpired ? 'منتهي' : diff + ' يوم'}</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="formatWhatsApp('${s.id}')" class="flex-1 bg-indigo-900 text-white py-3 rounded-xl text-xs font-bold hover:bg-black transition-all">تذكير</button>
+                        <button onclick="openSubModal(${JSON.stringify(s).replace(/"/g, '&quot;')})" class="p-3 bg-slate-100 text-slate-500 rounded-xl hover:text-indigo-600"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteItem('sub', '${s.id}')" class="p-3 bg-slate-100 text-slate-300 rounded-xl hover:text-red-600"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
 
-                <div className="col-span-2">
-                  <label className="text-[10px] font-bold text-gray-400 mr-2 block mb-1">يوزر تلجرام أو رقم (سيضاف +964 تلقائياً)</label>
-                  <input 
-                    value={formData.contact} 
-                    onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                    required 
-                    placeholder="7701234567 أو @username"
-                    className="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
-                </div>
+            // Stats
+            const totalRev = subscriptions.filter(s => s.isPaid).reduce((a, b) => a + b.price, 0);
+            const totalExp = expenses.reduce((a, b) => a + b.amount, 0);
+            document.getElementById('stat-active').innerText = subscriptions.filter(s => new Date(s.expiry) > today).length;
+            document.getElementById('stat-soon').innerText = subscriptions.filter(s => { const d = (new Date(s.expiry) - today) / 86400000; return d > 0 && d <= 3; }).length;
+            document.getElementById('stat-profit').innerText = `$${(totalRev - totalExp).toFixed(2)}`;
+            document.getElementById('stat-exps').innerText = `$${totalExp.toFixed(2)}`;
 
-                <InputGroup label="السعر ($)" id="price" type="number" step="0.01" val={formData.price} onChange={(v) => setFormData({...formData, price: v})} required />
-                
-                <div className="col-span-1">
-                  <label className="text-[10px] font-bold text-gray-400 mr-2 block mb-1">حالة الدفع</label>
-                  <select 
-                    value={formData.isPaid} 
-                    onChange={(e) => setFormData({...formData, isPaid: e.target.value})}
-                    className="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none"
-                  >
-                    <option value="true">واصل ✅</option><option value="false">مطلوب ❌</option>
-                  </select>
-                </div>
+            // Expenses table
+            document.getElementById('exps-list').innerHTML = `
+            <table class="w-full text-right text-sm">
+                <tr class="text-gray-400 border-b"><th class="pb-3 px-2">البيان</th><th class="pb-3 text-center">المبلغ</th><th class="pb-3 text-center">حذف</th></tr>
+                ${expenses.map(e => `
+                <tr class="border-b border-gray-50">
+                    <td class="py-4 px-2 font-bold">${e.title}<br><span class="text-[10px] text-gray-300 font-normal">${new Date(e.date).toLocaleDateString('ar-EG')}</span></td>
+                    <td class="text-center font-black text-red-500">$${e.amount.toFixed(2)}</td>
+                    <td class="text-center"><button onclick="deleteItem('exp', '${e.id}')" class="text-gray-200 hover:text-red-500"><i class="fas fa-trash"></i></button></td>
+                </tr>`).join('')}
+            </table>`;
+        };
 
-                {formData.plan === 'custom' && (
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-indigo-600 mr-2 block mb-1">تاريخ الانتهاء</label>
-                    <input 
-                      type="date" 
-                      value={formData.expiry} 
-                      onChange={(e) => setFormData({...formData, expiry: e.target.value})}
-                      required
-                      className="w-full p-3 bg-indigo-50 rounded-xl ring-1 ring-indigo-200 outline-none" 
-                    />
-                  </div>
-                )}
-                <InputGroup label="رابط الحساب (اختياري)" id="link" val={formData.link} onChange={(v) => setFormData({...formData, link: v})} className="col-span-2" />
-              </div>
-              <button type="submit" className="w-full bg-indigo-900 text-white py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-black transition-all mt-4">
-                {editingSub ? 'تحديث البيانات' : 'حفظ في السحابة'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Expense Modal */}
-      {showExpModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] backdrop-blur-sm">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="bg-red-600 p-6 text-white flex justify-between items-center">
-              <h2 className="text-xl font-black">إضافة صرفية</h2>
-              <button onClick={() => setShowExpModal(false)}><X /></button>
-            </div>
-            <form onSubmit={handleExpSubmit} className="p-8 space-y-4">
-              <InputGroup label="بيان الصرف" id="ex-title" val={expFormData.title} onChange={(v) => setExpFormData({...expFormData, title: v})} required />
-              <InputGroup label="المبلغ ($)" id="ex-amount" type="number" step="0.01" val={expFormData.amount} onChange={(v) => setExpFormData({...expFormData, amount: v})} required />
-              <button type="submit" className="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">تأكيد التسجيل</button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const StatCard = ({ title, val, color, icon }) => {
-  const colors = {
-    blue: 'border-blue-500 text-blue-600',
-    orange: 'border-orange-500 text-orange-600',
-    emerald: 'border-emerald-500 text-emerald-600',
-    red: 'border-red-500 text-red-600'
-  };
-  return (
-    <div className={`bg-white p-5 rounded-[2rem] shadow-sm border-r-4 transition-transform hover:scale-105 ${colors[color]}`}>
-      <div className="flex justify-between items-start mb-2 opacity-50">
-        <p className="text-[10px] font-bold uppercase">{title}</p>
-        <div className="p-1 rounded-lg bg-slate-50">{icon}</div>
-      </div>
-      <h3 className="text-2xl font-black text-slate-800 tracking-tight">{val}</h3>
-    </div>
-  );
-};
-
-const SubscriptionCard = ({ sub, onEdit, onDelete, onNotify }) => {
-  const today = new Date();
-  const expDate = new Date(sub.expiry);
-  const diffDays = Math.ceil((expDate - today) / (1000 * 3600 * 24));
-  const isExpired = diffDays <= 0;
-
-  return (
-    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 relative group overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1">
-      {diffDays <= 3 && diffDays > 0 && (
-        <div className="absolute top-0 right-0 bg-orange-500 text-white text-[10px] px-5 py-1 rounded-bl-2xl font-black animate-pulse z-10">تنتهي قريباً</div>
-      )}
-      {isExpired && (
-        <div className="absolute top-0 right-0 bg-red-600 text-white text-[10px] px-5 py-1 rounded-bl-2xl font-black z-10">منتهي الصلاحية</div>
-      )}
-      
-      <div className="flex justify-between items-start mb-6">
-        <div className="flex gap-4">
-          <div className="w-14 h-14 bg-indigo-50 text-indigo-700 rounded-[1.2rem] flex items-center justify-center font-black text-2xl shadow-inner">{sub.name[0]}</div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-lg leading-tight">{sub.name}</h4>
-            <div className="flex items-center gap-1 text-[11px] text-gray-400 font-bold mt-1 uppercase tracking-wider">
-              <CheckCircle size={10} /> {sub.service}
-            </div>
-          </div>
-        </div>
-        <div className="text-left">
-          <div className="text-xl font-black text-indigo-900 leading-none mb-2">${sub.price.toFixed(2)}</div>
-          <div className={`inline-block px-3 py-1 rounded-full text-[10px] font-black ${sub.isPaid ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600 border border-red-100 animate-bounce'}`}>
-            {sub.isPaid ? 'مدفوع السعر' : 'غير مسدد'}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-slate-50/50 p-4 rounded-2xl mb-6 space-y-2 border border-slate-100">
-        <div className="flex justify-between items-center">
-          <span className="text-[11px] text-gray-500 flex items-center gap-2"><Clock size={12} /> الأيام المتبقية:</span>
-          <span className={`text-sm font-black ${isExpired ? 'text-red-600' : diffDays <= 3 ? 'text-orange-600' : 'text-indigo-600'}`}>
-            {isExpired ? 'منتهي' : `باقي ${diffDays} يوم`}
-          </span>
-        </div>
-        <div className="flex justify-between items-center text-[11px]">
-          <span className="text-gray-400">تاريخ الانتهاء:</span>
-          <span className="text-slate-600 font-bold">{expDate.toLocaleDateString('ar-EG')}</span>
-        </div>
-        <div className="pt-2 border-t border-slate-100 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-gray-400">
-          <AlertCircle size={10} className="inline ml-1" /> {sub.email}
-        </div>
-      </div>
-
-      <div className="flex gap-2">
-        <button 
-          onClick={onNotify}
-          className="flex-1 bg-indigo-900 text-white py-3 rounded-xl text-xs font-black hover:bg-black transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95"
-        >
-          <Send size={14} /> تذكير احترافي
-        </button>
-        <button onClick={onEdit} className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-indigo-100 hover:text-indigo-700 transition-colors"><Edit3 size={18} /></button>
-        <button onClick={onDelete} className="p-3 bg-slate-100 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-      </div>
-    </div>
-  );
-};
-
-const InputGroup = ({ label, id, type = "text", val, onChange, required = false, className = "", ...props }) => (
-  <div className={className}>
-    <label htmlFor={id} className="text-[10px] font-bold text-gray-400 mr-2 block mb-1">{label}</label>
-    <input 
-      id={id}
-      type={type}
-      value={val}
-      onChange={(e) => onChange(e.target.value)}
-      required={required}
-      className="w-full p-3 bg-gray-50 rounded-xl border-none ring-1 ring-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
-      {...props}
-    />
-  </div>
-);
-
-export default App;
+        init();
+    </script>
+</body>
+</html>
 
