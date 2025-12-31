@@ -1,251 +1,297 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>آرين ستور - Debug Mode</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
-        body { font-family: 'Cairo', sans-serif; background: #f0f2f5; }
-        .log-box { background: #1a1a1a; color: #00ff00; font-family: monospace; font-size: 10px; padding: 10px; border-radius: 8px; max-height: 150px; overflow-y: auto; }
-    </style>
-</head>
-<body class="pb-24">
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  doc, 
+  deleteDoc, 
+  updateDoc 
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  Plus, 
+  Trash2, 
+  MessageCircle, 
+  Send, 
+  Calendar, 
+  Wallet, 
+  Clock, 
+  AlertCircle,
+  TrendingUp
+} from 'lucide-react';
 
-    <!-- نافذة التشخيص (تظهر فقط عند وجود مشكلة أو للتتبع) -->
-    <div id="debug-panel" class="p-4 bg-white border-b shadow-sm">
-        <h2 class="text-xs font-bold mb-2 text-gray-500 uppercase tracking-widest">حالة النظام السحابي</h2>
-        <div id="console-logs" class="log-box mb-2">
-            > جاري بدء التشغيل...
-        </div>
-        <div id="connection-indicator" class="flex items-center gap-2 text-xs font-bold">
-            <span id="stat-auth" class="px-2 py-1 bg-gray-200 rounded">Auth: ؟</span>
-            <span id="stat-db" class="px-2 py-1 bg-gray-200 rounded">DB: ؟</span>
-        </div>
-    </div>
+// Firebase Configuration
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'sub-manager-123';
 
-    <header class="bg-slate-900 text-white p-6 rounded-b-[30px] shadow-lg">
-        <div class="flex justify-between items-center">
-            <h1 class="text-xl font-black">آرين ستور <span class="text-blue-400 text-sm">V3</span></h1>
-            <div class="flex gap-2">
-                <button onclick="switchTab('subs')" class="p-2 bg-white/10 rounded-lg"><i class="fas fa-users"></i></button>
-                <button onclick="switchTab('exps')" class="p-2 bg-white/10 rounded-lg"><i class="fas fa-wallet"></i></button>
-            </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3 mt-6">
-            <div class="bg-white/5 p-3 rounded-2xl border border-white/10">
-                <p class="text-[10px] text-gray-400">صافي الربح</p>
-                <h2 id="total-profit" class="text-lg font-black text-emerald-400">$0</h2>
-            </div>
-            <div class="bg-white/5 p-3 rounded-2xl border border-white/10">
-                <p class="text-[10px] text-gray-400">الصرفيات</p>
-                <h2 id="total-exps" class="text-lg font-black text-red-400">$0</h2>
-            </div>
-        </div>
-    </header>
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Form State
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [category, setCategory] = useState('Service');
 
-    <main class="p-4">
-        <!-- قسم المشتركين -->
-        <div id="view-subs" class="space-y-4">
-            <input type="text" id="search" oninput="render()" placeholder="بحث سريع..." class="w-full p-4 rounded-2xl border shadow-sm outline-none focus:border-blue-500">
-            <div id="subs-list" class="grid gap-3"></div>
-        </div>
-
-        <!-- قسم الصرفيات -->
-        <div id="view-exps" class="hidden space-y-4">
-            <div class="flex justify-between items-center">
-                <h3 class="font-bold">سجل الصرفيات</h3>
-                <button onclick="openModal('exp')" class="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold">إضافة +</button>
-            </div>
-            <div id="exps-list" class="space-y-2"></div>
-        </div>
-    </main>
-
-    <!-- أزرار الإضافة -->
-    <button onclick="openModal('sub')" class="fixed bottom-6 left-6 w-14 h-14 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center text-xl z-50">
-        <i class="fas fa-plus"></i>
-    </button>
-
-    <!-- المودالات -->
-    <div id="modal-sub" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-[100] p-6 flex items-center justify-center">
-        <div class="bg-white w-full rounded-[25px] p-6">
-            <h3 class="font-black text-lg mb-4">إضافة مشترك</h3>
-            <form onsubmit="saveSub(event)" class="space-y-3">
-                <input id="s-name" placeholder="الاسم" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
-                <div class="grid grid-cols-2 gap-2">
-                    <select id="s-service" class="p-3 bg-gray-100 rounded-xl outline-none">
-                        <option>ChatGPT</option><option>Netflix</option><option>YouTube</option>
-                    </select>
-                    <input id="s-price" type="number" placeholder="السعر" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
-                </div>
-                <input id="s-expiry" type="date" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
-                <select id="s-paid" class="w-full p-3 bg-gray-100 rounded-xl outline-none">
-                    <option value="true">واصل</option>
-                    <option value="false">مطلب</option>
-                </select>
-                <div class="flex gap-2">
-                    <button type="submit" class="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold">حفظ</button>
-                    <button type="button" onclick="closeAll()" class="flex-1 bg-gray-100 py-3 rounded-xl font-bold">إلغاء</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="modal-exp" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-[100] p-6 flex items-center justify-center">
-        <div class="bg-white w-full max-w-sm rounded-[25px] p-6">
-            <h3 class="font-black text-lg mb-4">صرفية جديدة</h3>
-            <form onsubmit="saveExp(event)" class="space-y-3">
-                <input id="e-reason" placeholder="السبب" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
-                <input id="e-amount" type="number" placeholder="المبلغ" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
-                <button type="submit" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold">تأكيد</button>
-            </form>
-        </div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-
-        const logger = document.getElementById('console-logs');
-        function log(msg, color = "#00ff00") {
-            const time = new Date().toLocaleTimeString();
-            logger.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
-            logger.scrollTop = logger.scrollHeight;
+  // 1. Authentication
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
+      } catch (error) {
+        console.error("Auth error:", error);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return () => unsubscribe();
+  }, []);
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-debug';
+  // 2. Data Fetching
+  useEffect(() => {
+    if (!user) return;
 
-        let db, auth, subsCol, expsCol;
-        let dataSubs = [], dataExps = [];
+    const subsCollection = collection(db, 'artifacts', appId, 'users', user.uid, 'subscriptions');
+    const unsubscribe = onSnapshot(subsCollection, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSubscriptions(docs);
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore error:", error);
+      setLoading(false);
+    });
 
-        async function init() {
-            try {
-                log("جاري الاتصال بـ Firebase...");
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+    return () => unsubscribe();
+  }, [user]);
 
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        log("تم تسجيل الدخول المجهول بنجاح!", "#3b82f6");
-                        document.getElementById('stat-auth').className = "px-2 py-1 bg-emerald-500 text-white rounded";
-                        document.getElementById('stat-auth').innerText = "Auth: OK";
-                        startSync();
-                    } else {
-                        log("جاري محاولة تسجيل الدخول...", "#f59e0b");
-                        signInAnonymously(auth).catch(e => log("خطأ Auth: " + e.message, "#ef4444"));
-                    }
-                });
+  // Actions
+  const addSubscription = async (e) => {
+    e.preventDefault();
+    if (!name || !price || !expiryDate || !user) return;
 
-            } catch (e) {
-                log("خطأ في التهيئة: " + e.message, "#ef4444");
-            }
-        }
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'subscriptions'), {
+        name,
+        price: parseFloat(price),
+        expiryDate,
+        category,
+        createdAt: new Date().toISOString()
+      });
+      setName('');
+      setPrice('');
+      setExpiryDate('');
+    } catch (err) {
+      console.error("Error adding sub:", err);
+    }
+  };
 
-        function startSync() {
-            subsCol = collection(db, 'artifacts', appId, 'public', 'data', 'subs');
-            expsCol = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
+  const deleteSubscription = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'subscriptions', id));
+    } catch (err) {
+      console.error("Error deleting:", err);
+    }
+  };
 
-            onSnapshot(subsCol, (s) => {
-                dataSubs = s.docs.map(d => ({id: d.id, ...d.data()}));
-                log(`تم جلب ${dataSubs.length} مشتركين`);
-                document.getElementById('stat-db').className = "px-2 py-1 bg-emerald-500 text-white rounded";
-                document.getElementById('stat-db').innerText = "DB: OK";
-                render();
-            }, (e) => log("خطأ في جلب البيانات: " + e.message, "#ef4444"));
+  const calculateDaysLeft = (dateString) => {
+    const diff = new Date(dateString) - new Date();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days;
+  };
 
-            onSnapshot(expsCol, (s) => {
-                dataExps = s.docs.map(d => ({id: d.id, ...d.data()}));
-                render();
-            });
-        }
+  const sendReminder = (sub, platform) => {
+    const days = calculateDaysLeft(sub.expiryDate);
+    const message = `تذكير: اشتراك ${sub.name} سينتهي خلال ${days} أيام (تاريخ الانتهاء: ${sub.expiryDate}). يرجى التحقق من الرصيد!`;
+    const encodedMsg = encodeURIComponent(message);
+    
+    if (platform === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
+    } else {
+      window.open(`https://t.me/share/url?url=${window.location.href}&text=${encodedMsg}`, '_blank');
+    }
+  };
 
-        window.saveSub = async (e) => {
-            e.preventDefault();
-            log("جاري محاولة الحفظ...");
-            try {
-                const payload = {
-                    name: document.getElementById('s-name').value,
-                    service: document.getElementById('s-service').value,
-                    price: parseFloat(document.getElementById('s-price').value),
-                    expiry: document.getElementById('s-expiry').value,
-                    paid: document.getElementById('s-paid').value === 'true',
-                    ts: Date.now()
-                };
-                await addDoc(subsCol, payload);
-                log("تم الحفظ بنجاح!", "#3b82f6");
-                closeAll();
-            } catch (err) {
-                log("فشل الحفظ: " + err.message, "#ef4444");
-                alert("فشل الحفظ! تأكد من القواعد السحابية (Rules)");
-            }
-        };
+  const totalMonthlySpend = subscriptions.reduce((acc, curr) => acc + curr.price, 0);
 
-        window.saveExp = async (e) => {
-            e.preventDefault();
-            try {
-                await addDoc(expsCol, {
-                    reason: document.getElementById('e-reason').value,
-                    amount: parseFloat(document.getElementById('e-amount').value),
-                    ts: Date.now()
-                });
-                closeAll();
-            } catch (e) { log("خطأ صرفية: " + e.message, "#ef4444"); }
-        };
+  if (!user) return (
+    <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+  );
 
-        window.render = () => {
-            const list = document.getElementById('subs-list');
-            const search = document.getElementById('search').value.toLowerCase();
-            
-            const filtered = dataSubs.filter(s => s.name.toLowerCase().includes(search));
-            
-            list.innerHTML = filtered.map(s => `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+  return (
+    <div className="min-h-screen bg-gray-50 text-right" dir="rtl">
+      {/* Header */}
+      <nav className="bg-white shadow-sm p-4 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Wallet className="text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-800">مدير اشتراكاتي</h1>
+          </div>
+          <div className="bg-blue-50 px-4 py-2 rounded-lg">
+            <span className="text-sm text-blue-600 font-medium">إجمالي المصاريف: {totalMonthlySpend.toLocaleString()} د.ع</span>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-4xl mx-auto p-4 space-y-6">
+        
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className="p-3 bg-blue-100 rounded-lg text-blue-600"><TrendingUp size={24}/></div>
+            <div>
+              <p className="text-sm text-gray-500">الاشتراكات النشطة</p>
+              <p className="text-xl font-bold">{subscriptions.length}</p>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className="p-3 bg-red-100 rounded-lg text-red-600"><AlertCircle size={24}/></div>
+            <div>
+              <p className="text-sm text-gray-500">تحتاج تجديد (قريباً)</p>
+              <p className="text-xl font-bold text-red-600">
+                {subscriptions.filter(s => calculateDaysLeft(s.expiryDate) < 5).length}
+              </p>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div className="p-3 bg-green-100 rounded-lg text-green-600"><Clock size={24}/></div>
+            <div>
+              <p className="text-sm text-gray-500">المعدل الشهري</p>
+              <p className="text-xl font-bold">{(totalMonthlySpend / (subscriptions.length || 1)).toFixed(0)} د.ع</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Add New Subscription */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Plus className="text-blue-600" size={20} />
+            إضافة اشتراك جديد
+          </h2>
+          <form onSubmit={addSubscription} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input 
+              type="text" 
+              placeholder="اسم الاشتراك (مثل ChatGPT)" 
+              className="p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <input 
+              type="number" 
+              placeholder="السعر (د.ع)" 
+              className="p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              required
+            />
+            <input 
+              type="date" 
+              className="p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+              required
+            />
+            <button 
+              type="submit" 
+              className="bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-100"
+            >
+              حفظ الاشتراك
+            </button>
+          </form>
+        </div>
+
+        {/* Subscriptions List */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-gray-700">قائمة اشتراكاتك</h2>
+          {loading ? (
+             <div className="text-center py-10 text-gray-400">جاري التحميل...</div>
+          ) : subscriptions.length === 0 ? (
+            <div className="text-center py-20 bg-gray-50 border-2 border-dashed rounded-2xl">
+              <p className="text-gray-400">لا توجد اشتراكات مضافة حالياً.</p>
+            </div>
+          ) : (
+            subscriptions.map((sub) => {
+              const daysLeft = calculateDaysLeft(sub.expiryDate);
+              const isExpired = daysLeft <= 0;
+              const isWarning = daysLeft <= 5 && daysLeft > 0;
+
+              return (
+                <div key={sub.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 transition hover:shadow-md">
+                  <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className={`p-3 rounded-full ${isExpired ? 'bg-red-100 text-red-600' : isWarning ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'}`}>
+                      <Calendar size={24} />
+                    </div>
                     <div>
-                        <h4 class="font-bold text-slate-800">${s.name}</h4>
-                        <p class="text-[10px] text-blue-500 font-bold uppercase">${s.service} | ${s.expiry}</p>
+                      <h3 className="font-bold text-lg">{sub.name}</h3>
+                      <p className="text-sm text-gray-500">{sub.price.toLocaleString()} د.ع / شهر</p>
                     </div>
-                    <div class="flex items-center gap-3">
-                        <div class="text-left">
-                            <div class="font-black">$${s.price}</div>
-                            <div class="text-[9px] ${s.paid ? 'text-emerald-500' : 'text-red-500'} font-bold">${s.paid ? 'واصل' : 'مطلب'}</div>
-                        </div>
-                        <button onclick="deleteDoc(doc(db, '${subsCol.path}', '${s.id}'))" class="text-gray-300"><i class="fas fa-trash"></i></button>
-                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center">
+                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${isExpired ? 'bg-red-50 text-red-600' : isWarning ? 'bg-yellow-50 text-yellow-600' : 'bg-blue-50 text-blue-600'}`}>
+                      {isExpired ? 'منتهي' : `متبقي ${daysLeft} يوم`}
+                    </span>
+                    <p className="text-xs text-gray-400 mt-1">ينتهي في: {sub.expiryDate}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full md:w-auto justify-center">
+                    <button 
+                      onClick={() => sendReminder(sub, 'whatsapp')}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg flex items-center gap-1 text-sm font-medium border border-green-100"
+                      title="تذكير واتساب"
+                    >
+                      <MessageCircle size={18} />
+                      تذكير واتس
+                    </button>
+                    <button 
+                      onClick={() => sendReminder(sub, 'telegram')}
+                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg flex items-center gap-1 text-sm font-medium border border-blue-100"
+                      title="تذكير تليجرام"
+                    >
+                      <Send size={18} />
+                      تليجرام
+                    </button>
+                    <button 
+                      onClick={() => deleteSubscription(sub.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
-            `).join('');
+              );
+            })
+          )}
+        </div>
+      </main>
 
-            // تحديث الحسابات
-            const totalSales = dataSubs.filter(s => s.paid).reduce((a,b) => a + b.price, 0);
-            const totalExp = dataExps.reduce((a,b) => a + b.amount, 0);
-            document.getElementById('total-profit').innerText = '$' + (totalSales - totalExp).toFixed(1);
-            document.getElementById('total-exps').innerText = '$' + totalExp.toFixed(1);
-
-            // سجل الصرفيات
-            document.getElementById('exps-list').innerHTML = dataExps.map(e => `
-                <div class="bg-white p-3 rounded-xl border-r-4 border-red-500 flex justify-between">
-                    <span class="text-xs font-bold">${e.reason}</span>
-                    <span class="text-xs font-black text-red-600">$${e.amount}</span>
-                </div>
-            `).join('');
-        };
-
-        window.switchTab = (t) => {
-            document.getElementById('view-subs').classList.toggle('hidden', t !== 'subs');
-            document.getElementById('view-exps').classList.toggle('hidden', t !== 'exps');
-        };
-
-        window.openModal = (m) => document.getElementById('modal-' + m).classList.remove('hidden');
-        window.closeAll = () => {
-            document.querySelectorAll('[id^="modal-"]').forEach(m => m.classList.add('hidden'));
-        };
-
-        init();
-    </script>
-</body>
-</html>
+      <footer className="py-10 text-center text-gray-400 text-sm">
+        نظام إدارة الاشتراكات والمصاريف الذكي &copy; 2024
+      </footer>
+    </div>
+  );
+}
 
