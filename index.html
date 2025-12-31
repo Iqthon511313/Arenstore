@@ -17,20 +17,22 @@
 </head>
 <body class="pb-10">
 
-    <div id="loader" class="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center">
+    <!-- Loading Screen -->
+    <div id="loader" class="fixed inset-0 bg-white z-[200] flex flex-col items-center justify-center transition-opacity duration-500">
         <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-900 mb-4"></div>
         <p class="text-indigo-900 font-bold">جاري الاتصال بالسحابة...</p>
+        <button id="skipLoader" onclick="forceOpen()" class="mt-8 text-xs text-gray-400 underline hidden">دخول يدوي في حال التأخر</button>
     </div>
 
     <header class="bg-indigo-900 text-white sticky top-0 z-50 shadow-lg">
         <div class="container mx-auto px-4 py-4 flex justify-between items-center">
             <div class="flex items-center gap-2">
-                <i class="fas fa-store text-2xl"></i>
+                <i class="fas fa-crown text-2xl text-yellow-400"></i>
                 <h1 class="text-xl font-black">آرين ستور</h1>
             </div>
             <div class="flex bg-indigo-800 p-1 rounded-2xl">
                 <button onclick="switchTab('subs')" id="btn-subs" class="px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all">الاشتراكات</button>
-                <button onclick="switchTab('exps')" id="btn-exps" class="px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all">الصرفيات</button>
+                <button onclick="switchTab('exps')" id="btn-exps" class="px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all text-white">الصرفيات</button>
             </div>
         </div>
     </header>
@@ -111,7 +113,7 @@
                     <div class="col-span-1">
                         <label class="text-[10px] font-bold text-gray-400 mr-2">الخدمة</label>
                         <select id="in-service" class="w-full p-3 bg-gray-50 rounded-xl ring-1 ring-gray-200 outline-none">
-                            <option>ChatGPT</option><option>Netflix</option><option>YouTube Premium</option><option>Canva Pro</option>
+                            <option>ChatGPT</option><option>Netflix</option><option>YouTube Premium</option><option>Canva Pro</option><option>Nitro</option>
                         </select>
                     </div>
                     <div class="col-span-1">
@@ -139,7 +141,7 @@
                         <input id="in-expiry" type="date" class="w-full p-3 bg-indigo-50 rounded-xl outline-none">
                     </div>
                 </div>
-                <button type="submit" class="w-full bg-indigo-900 text-white py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-black">حفظ سحابي</button>
+                <button type="submit" class="w-full bg-indigo-900 text-white py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-black transition-all">حفظ في السحابة</button>
             </form>
         </div>
     </div>
@@ -165,31 +167,47 @@
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
+        // Global configuration injected by environment
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-cloud';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-fixed-v2';
 
         let subscriptions = [];
         let expenses = [];
         let currentFilter = 'all';
 
-        // Auth Setup
-        async function init() {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-            
-            onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    setupListeners();
-                    document.getElementById('loader').classList.add('hidden');
+        // Auto-show skip button after 4 seconds
+        setTimeout(() => {
+            const skipBtn = document.getElementById('skipLoader');
+            if (skipBtn) skipBtn.classList.remove('hidden');
+        }, 4000);
+
+        window.forceOpen = () => {
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => document.getElementById('loader').classList.add('hidden'), 500);
+        };
+
+        // Auth Setup with Rule 3 logic
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
                 }
-            });
+            } catch (err) {
+                console.error("Auth failed, but attempting to proceed:", err);
+            }
         }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                setupListeners();
+                window.forceOpen();
+            }
+        });
 
         function setupListeners() {
             const subsRef = collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions');
@@ -198,27 +216,27 @@
             onSnapshot(subsRef, (snap) => {
                 subscriptions = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 render();
-            }, (err) => console.error(err));
+            }, (err) => console.error("Subs Error:", err));
 
             onSnapshot(expsRef, (snap) => {
                 expenses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 render();
-            }, (err) => console.error(err));
+            }, (err) => console.error("Exps Error:", err));
         }
 
-        // Exposed Functions
+        // Exposed global functions for HTML interactions
         window.switchTab = (tab) => {
             document.getElementById('view-subs').classList.toggle('hidden', tab !== 'subs');
             document.getElementById('view-exps').classList.toggle('hidden', tab !== 'exps');
-            document.getElementById('btn-subs').className = tab === 'subs' ? 'px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all' : 'px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all';
-            document.getElementById('btn-exps').className = tab === 'exps' ? 'px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all' : 'px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all';
+            document.getElementById('btn-subs').className = tab === 'subs' ? 'px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all' : 'px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all text-white';
+            document.getElementById('btn-exps').className = tab === 'exps' ? 'px-6 py-2 rounded-xl font-bold bg-white text-indigo-900 shadow-sm transition-all' : 'px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all text-white';
         };
 
         window.openSubModal = (editData = null) => {
             const form = document.getElementById('subForm');
             form.reset();
             document.getElementById('editId').value = editData ? editData.id : '';
-            document.getElementById('modalTitle').innerText = editData ? 'تعديل المشترك' : 'إضافة مشترك';
+            document.getElementById('modalTitle').innerText = editData ? 'تعديل المشترك' : 'إضافة مشترك جديد';
             
             if (editData) {
                 document.getElementById('in-name').value = editData.name;
@@ -231,7 +249,11 @@
                 if (editData.plan === 'custom') {
                     document.getElementById('customDate').classList.remove('hidden');
                     document.getElementById('in-expiry').value = editData.expiry;
+                } else {
+                    document.getElementById('customDate').classList.add('hidden');
                 }
+            } else {
+                document.getElementById('customDate').classList.add('hidden');
             }
             
             document.getElementById('subModal').classList.remove('hidden');
@@ -273,32 +295,40 @@
                 service: document.getElementById('in-service').value,
                 plan: plan,
                 contact: contact,
-                price: parseFloat(document.getElementById('in-price').value),
+                price: parseFloat(document.getElementById('in-price').value) || 0,
                 isPaid: document.getElementById('in-paid').value === 'true',
                 expiry: expiry,
                 updatedAt: new Date().toISOString()
             };
 
-            if (id) {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subscriptions', id), data);
-            } else {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions'), data);
+            try {
+                if (id) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subscriptions', id), data);
+                } else {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions'), data);
+                }
+                window.closeModal('subModal');
+            } catch (err) {
+                alert("خطأ في الحفظ السحابي: " + err.message);
             }
-            window.closeModal('subModal');
         };
 
         window.handleExpSubmit = async (e) => {
             e.preventDefault();
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), {
-                title: document.getElementById('ex-title').value,
-                amount: parseFloat(document.getElementById('ex-amount').value),
-                date: new Date().toISOString()
-            });
-            window.closeModal('expModal');
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), {
+                    title: document.getElementById('ex-title').value,
+                    amount: parseFloat(document.getElementById('ex-amount').value) || 0,
+                    date: new Date().toISOString()
+                });
+                window.closeModal('expModal');
+            } catch (err) {
+                alert("خطأ في تسجيل الصرفية: " + err.message);
+            }
         };
 
         window.deleteItem = async (type, id) => {
-            if (confirm('حذف نهائي؟')) {
+            if (confirm('هل أنت متأكد من الحذف النهائي؟')) {
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', type === 'sub' ? 'subscriptions' : 'expenses', id));
             }
         };
@@ -307,7 +337,7 @@
             currentFilter = f;
             document.querySelectorAll('.filter-btn').forEach(btn => {
                 const isActive = btn.dataset.f === f;
-                btn.className = `filter-btn px-6 py-2 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-indigo-900 text-white' : 'bg-white text-gray-500 border border-gray-100'}`;
+                btn.className = `filter-btn px-6 py-2 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-indigo-900 text-white shadow-md' : 'bg-white text-gray-500 border border-gray-100'}`;
             });
             render();
         };
@@ -323,7 +353,7 @@
             const expDate = new Date(s.expiry);
             const diff = Math.ceil((expDate - today) / (1000 * 3600 * 24));
             
-            const msg = `*آرين ستور - تذكير* 👑\n\nعزيزي *${s.name}*\nاشتراكك في *${s.service}* أوشك على الانتهاء.\n\n🗓 ينتهي يوم: ${expDate.toLocaleDateString('ar-EG')}\n⏳ المتبقي: ${diff > 0 ? diff + ' يوم' : 'منتهي'}\n💰 المطلوب: $${s.price.toFixed(2)}\n\nيرجى التواصل للتجديد ✨`;
+            const msg = `*آرين ستور - تذكير بتجديد الاشتراك* 👑\n\nعزيزي الزبون: *${s.name}*\nنود تذكيرك بأن اشتراكك في خدمة *${s.service}* أوشك على الانتهاء.\n\n🗓 تاريخ الانتهاء: ${expDate.toLocaleDateString('ar-EG')}\n⏳ المتبقي: ${diff > 0 ? diff + ' يوم' : 'منتهي'}\n💰 المبلغ المطلوب: $${s.price.toFixed(2)}\n\nيرجى التواصل معنا للتجديد وضمان استمرار الخدمة. شكراً لثقتكم بنا! ✨`;
             
             const link = s.contact.startsWith('+') 
                 ? `https://wa.me/${s.contact.replace('+', '')}?text=${encodeURIComponent(msg)}`
@@ -337,7 +367,7 @@
             const today = new Date();
 
             const filtered = subscriptions.filter(s => {
-                const match = s.name.toLowerCase().includes(search) || s.email.toLowerCase().includes(search);
+                const match = s.name.toLowerCase().includes(search) || s.email.toLowerCase().includes(search) || s.service.toLowerCase().includes(search);
                 const expDate = new Date(s.expiry);
                 const diff = (expDate - today) / (1000 * 3600 * 24);
                 if (currentFilter === 'active') return match && expDate > today;
@@ -353,8 +383,8 @@
                 
                 return `
                 <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-50 card-anim relative overflow-hidden">
-                    ${diff <= 3 && diff > 0 ? '<div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] px-4 py-1 rounded-bl-2xl font-black">قرب ينتهي</div>' : ''}
-                    ${isExpired ? '<div class="absolute top-0 right-0 bg-red-600 text-white text-[10px] px-4 py-1 rounded-bl-2xl font-black">منتهي</div>' : ''}
+                    ${diff <= 3 && diff > 0 ? '<div class="absolute top-0 right-0 bg-orange-500 text-white text-[10px] px-4 py-1 rounded-bl-2xl font-black z-10">ينتهي قريباً</div>' : ''}
+                    ${isExpired ? '<div class="absolute top-0 right-0 bg-red-600 text-white text-[10px] px-4 py-1 rounded-bl-2xl font-black z-10">منتهي</div>' : ''}
                     <div class="flex justify-between items-start mb-4">
                         <div class="flex gap-3">
                             <div class="w-12 h-12 bg-indigo-50 text-indigo-900 rounded-xl flex items-center justify-center font-black text-xl">${s.name[0]}</div>
@@ -364,18 +394,20 @@
                             </div>
                         </div>
                         <div class="text-left">
-                            <div class="text-lg font-black text-slate-900">$${s.price.toFixed(2)}</div>
-                            <span class="text-[9px] px-2 py-0.5 rounded-full font-bold ${s.isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600 animate-pulse'}">${s.isPaid ? 'واصل' : 'مطلوب'}</span>
+                            <div class="text-lg font-black text-slate-900 leading-none mb-1">$${s.price.toFixed(2)}</div>
+                            <span class="text-[9px] px-2 py-0.5 rounded-full font-bold ${s.isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600 animate-pulse'}">${s.isPaid ? 'مدفوع' : 'مطلوب'}</span>
                         </div>
                     </div>
                     <div class="bg-slate-50 p-4 rounded-2xl mb-4 flex justify-between items-center text-xs">
-                        <span class="text-gray-400">المتبقي:</span>
+                        <span class="text-gray-400 font-bold">باقي:</span>
                         <span class="font-black ${isExpired ? 'text-red-600' : 'text-indigo-700'}">${isExpired ? 'منتهي' : diff + ' يوم'}</span>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="formatWhatsApp('${s.id}')" class="flex-1 bg-indigo-900 text-white py-3 rounded-xl text-xs font-bold hover:bg-black transition-all">تذكير</button>
-                        <button onclick="openSubModal(${JSON.stringify(s).replace(/"/g, '&quot;')})" class="p-3 bg-slate-100 text-slate-500 rounded-xl hover:text-indigo-600"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteItem('sub', '${s.id}')" class="p-3 bg-slate-100 text-slate-300 rounded-xl hover:text-red-600"><i class="fas fa-trash-alt"></i></button>
+                        <button onclick="formatWhatsApp('${s.id}')" class="flex-1 bg-indigo-900 text-white py-3 rounded-xl text-xs font-bold hover:bg-black transition-all flex items-center justify-center gap-2">
+                            <i class="fab fa-whatsapp"></i> تذكير
+                        </button>
+                        <button onclick="openSubModal(${JSON.stringify(s).replace(/"/g, '&quot;')})" class="p-3 bg-slate-100 text-slate-500 rounded-xl hover:text-indigo-600 transition-colors"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteItem('sub', '${s.id}')" class="p-3 bg-slate-100 text-slate-300 rounded-xl hover:text-red-600 transition-colors"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 </div>`;
             }).join('');
@@ -389,19 +421,26 @@
             document.getElementById('stat-exps').innerText = `$${totalExp.toFixed(2)}`;
 
             // Expenses table
-            document.getElementById('exps-list').innerHTML = `
-            <table class="w-full text-right text-sm">
-                <tr class="text-gray-400 border-b"><th class="pb-3 px-2">البيان</th><th class="pb-3 text-center">المبلغ</th><th class="pb-3 text-center">حذف</th></tr>
-                ${expenses.map(e => `
-                <tr class="border-b border-gray-50">
-                    <td class="py-4 px-2 font-bold">${e.title}<br><span class="text-[10px] text-gray-300 font-normal">${new Date(e.date).toLocaleDateString('ar-EG')}</span></td>
-                    <td class="text-center font-black text-red-500">$${e.amount.toFixed(2)}</td>
-                    <td class="text-center"><button onclick="deleteItem('exp', '${e.id}')" class="text-gray-200 hover:text-red-500"><i class="fas fa-trash"></i></button></td>
-                </tr>`).join('')}
-            </table>`;
+            const expContainer = document.getElementById('exps-list');
+            if (expenses.length === 0) {
+                expContainer.innerHTML = '<p class="text-center py-10 text-gray-300">لا توجد مصاريف مسجلة</p>';
+            } else {
+                expContainer.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full text-right text-sm">
+                        <tr class="text-gray-400 border-b font-bold"><th class="pb-3 px-2">البيان</th><th class="pb-3 text-center">المبلغ</th><th class="pb-3 text-center">حذف</th></tr>
+                        ${expenses.map(e => `
+                        <tr class="border-b border-gray-50 hover:bg-slate-50 transition-colors">
+                            <td class="py-4 px-2 font-bold">${e.title}<br><span class="text-[10px] text-gray-300 font-normal">${new Date(e.date).toLocaleDateString('ar-EG')}</span></td>
+                            <td class="text-center font-black text-red-500">$${e.amount.toFixed(2)}</td>
+                            <td class="text-center"><button onclick="deleteItem('exp', '${e.id}')" class="text-gray-200 hover:text-red-500"><i class="fas fa-trash-alt"></i></button></td>
+                        </tr>`).join('')}
+                    </table>
+                </div>`;
+            }
         };
 
-        init();
+        initAuth();
     </script>
 </body>
 </html>
