@@ -3,197 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>آرين ستور Ultra</title>
+    <title>آرين ستور | النسخة السحابية</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
-        body { font-family: 'Cairo', sans-serif; background: #f8fafc; overflow-x: hidden; }
-        .ultra-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border-radius: 0 0 3rem 3rem; }
-        .glass-card { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-        .sub-card { transition: transform 0.2s; border: 1px solid #e2e8f0; }
-        .sub-card:active { transform: scale(0.97); }
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .main-gradient {
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+        }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-tab {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .active-tab {
+            background-color: #1e1b4b;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* تحسينات الموبايل */
+        @media (max-width: 640px) {
+            .container { padding: 0 12px; }
+            .modal-box { width: 95%; border-radius: 24px; }
+        }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .tab-btn { transition: all 0.3s; white-space: nowrap; }
-        .tab-active { background: #0f172a; color: white; transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        #loading-overlay { z-index: 999; }
     </style>
 </head>
-<body class="pb-28">
+<body class="pb-32">
 
-    <!-- Loading Screen -->
-    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 flex flex-col items-center justify-center text-white">
-        <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="font-black animate-pulse">جاري تأمين الاتصال بالسحابة...</p>
+    <!-- شاشة التحميل الذكية -->
+    <div id="loader" class="fixed inset-0 bg-white z-[999] flex flex-col items-center justify-center">
+        <div class="w-12 h-12 border-4 border-indigo-900 border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-4 font-bold text-indigo-900 animate-pulse">جاري تأمين الاتصال السحابي...</p>
     </div>
 
-    <!-- Header -->
-    <header class="ultra-header text-white pt-10 pb-16 px-6 shadow-2xl relative">
-        <div class="container mx-auto">
-            <div class="flex justify-between items-center mb-10">
+    <!-- الهيدر ولوحة الإحصائيات -->
+    <header class="main-gradient text-white pt-8 pb-16 px-6 rounded-b-[40px] shadow-xl relative overflow-hidden">
+        <div class="absolute top-0 right-0 p-4 opacity-10">
+            <i class="fas fa-shield-halved text-9xl"></i>
+        </div>
+
+        <div class="container mx-auto relative z-10">
+            <div class="flex justify-between items-center mb-8">
                 <div>
-                    <h1 class="text-2xl font-black">آرين ستور <span class="text-blue-400">ULTRA</span></h1>
+                    <h1 class="text-2xl font-black tracking-tight">آرين ستور <span class="bg-indigo-500 text-[10px] px-2 py-1 rounded-lg mr-2 uppercase">Pro</span></h1>
                     <div class="flex items-center gap-2 mt-1">
-                        <span id="conn-dot" class="w-2 h-2 rounded-full bg-red-500"></span>
-                        <span id="conn-status" class="text-[10px] text-slate-400 font-bold">بدء النظام...</span>
+                        <span id="sync-dot" class="status-dot bg-red-500 shadow-[0_0_8px_red]"></span>
+                        <span id="sync-text" class="text-[10px] text-indigo-200 font-bold tracking-wide">جاري الاتصال...</span>
                     </div>
                 </div>
-                <div class="flex gap-3">
-                    <button onclick="showSection('subs')" class="w-12 h-12 rounded-2xl glass-card flex items-center justify-center"><i class="fas fa-users"></i></button>
-                    <button onclick="showSection('exps')" class="w-12 h-12 rounded-2xl glass-card flex items-center justify-center"><i class="fas fa-wallet"></i></button>
+                <div class="flex gap-2">
+                    <button onclick="changeTab('subs')" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md"><i class="fas fa-users-gear"></i></button>
+                    <button onclick="changeTab('exps')" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md"><i class="fas fa-file-invoice-dollar"></i></button>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div class="glass-card p-4 rounded-3xl">
-                    <p class="text-[10px] text-blue-300 font-bold uppercase mb-1">صافي الأرباح</p>
-                    <h3 id="stat-net" class="text-2xl font-black text-white">$0</h3>
+            <!-- Dashboard -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
+                    <p class="text-[10px] text-indigo-200 font-bold">صافي الربح</p>
+                    <h2 id="dash-net" class="text-xl font-black text-emerald-400">$0</h2>
                 </div>
-                <div class="glass-card p-4 rounded-3xl">
-                    <p class="text-[10px] text-red-300 font-bold uppercase mb-1">إجمالي الصرفيات</p>
-                    <h3 id="stat-exps" class="text-2xl font-black text-white">$0</h3>
+                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
+                    <p class="text-[10px] text-indigo-200 font-bold">الصرفيات</p>
+                    <h2 id="dash-exps" class="text-xl font-black text-red-400">$0</h2>
+                </div>
+                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
+                    <p class="text-[10px] text-indigo-200 font-bold">المطاليب</p>
+                    <h2 id="dash-debt" class="text-xl font-black text-orange-400">$0</h2>
+                </div>
+                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
+                    <p class="text-[10px] text-indigo-200 font-bold">المشتركين</p>
+                    <h2 id="dash-count" class="text-xl font-black">0</h2>
                 </div>
             </div>
         </div>
     </header>
 
-    <main class="container mx-auto px-4 -mt-8 relative z-10">
+    <main class="container mx-auto px-4 -mt-8 relative z-20">
         
-        <!-- Subscribers Section -->
+        <!-- قسم المشتركين -->
         <section id="sec-subs" class="space-y-4">
-            <div class="bg-white p-2 rounded-2xl shadow-lg flex items-center gap-2 border border-slate-100">
-                <i class="fas fa-search text-slate-300 mr-3"></i>
-                <input type="text" id="sub-search" oninput="render()" placeholder="بحث باسم المشترك..." class="w-full py-3 outline-none font-bold text-sm">
+            <div class="bg-white p-2 rounded-2xl shadow-lg border border-gray-100 flex items-center px-4">
+                <i class="fas fa-search text-gray-300"></i>
+                <input type="text" id="search-input" oninput="render()" placeholder="ابحث باسم المشترك أو الخدمة..." class="w-full py-3 px-3 outline-none font-bold text-sm bg-transparent text-gray-700">
             </div>
 
-            <div class="flex gap-2 overflow-x-auto no-scrollbar py-2">
-                <button onclick="setFilter('all')" id="btn-all" class="tab-btn tab-active px-6 py-2 rounded-full text-xs font-black">الكل</button>
-                <button onclick="setFilter('unpaid')" id="btn-unpaid" class="tab-btn bg-white text-orange-500 px-6 py-2 rounded-full text-xs font-black shadow-sm">المطاليب 💸</button>
-                <button onclick="setFilter('expired')" id="btn-expired" class="tab-btn bg-white text-red-500 px-6 py-2 rounded-full text-xs font-black shadow-sm">منتهي ⚠️</button>
+            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+                <button onclick="setFilter('all')" id="f-all" class="nav-tab active-tab px-6 py-2 rounded-full text-xs font-black shadow-sm">الكل</button>
+                <button onclick="setFilter('unpaid')" id="f-unpaid" class="nav-tab bg-white text-orange-600 px-6 py-2 rounded-full text-xs font-black shadow-sm">المطاليب</button>
+                <button onclick="setFilter('expired')" id="f-expired" class="nav-tab bg-white text-red-600 px-6 py-2 rounded-full text-xs font-black shadow-sm">المنتهية</button>
             </div>
 
-            <div id="subs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            <div id="subs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- المشتركين يظهرون هنا -->
+            </div>
         </section>
 
-        <!-- Expenses Section -->
-        <section id="sec-exps" class="hidden space-y-4">
-            <div class="flex justify-between items-center">
-                <h2 class="font-black text-slate-800 text-xl px-2">سجل الصرفيات</h2>
-                <button onclick="openExpModal()" class="bg-red-500 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg">إضافة +</button>
+        <!-- قسم الصرفيات -->
+        <section id="sec-exps" class="hidden space-y-4 animate-in fade-in duration-300">
+            <div class="flex justify-between items-center px-2">
+                <h2 class="font-black text-indigo-900 text-lg">سجل المصروفات</h2>
+                <button onclick="openExpModal()" class="bg-red-600 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg">إضافة صرفية +</button>
             </div>
-            <div id="exps-list" class="space-y-3"></div>
+            <div id="exps-list" class="space-y-3">
+                <!-- الصرفيات تظهر هنا -->
+            </div>
         </section>
 
     </main>
 
-    <!-- FAB -->
-    <button onclick="openSubModal()" class="fixed bottom-8 left-8 w-16 h-16 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-50 border-4 border-white">
+    <!-- الزر العائم -->
+    <button onclick="openSubModal()" id="fab" class="fixed bottom-8 left-8 w-16 h-16 main-gradient text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-50 border-4 border-white transform active:scale-90 transition-transform">
         <i class="fas fa-plus"></i>
     </button>
 
-    <!-- Modals (Sub & Exp) -->
-    <div id="modal-sub" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden z-[200] p-4 flex items-center justify-center">
-        <div class="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <div class="bg-slate-900 p-6 text-white flex justify-between items-center">
-                <h3 id="sub-modal-title" class="font-black text-xl">بيانات المشترك</h3>
-                <button onclick="closeModals()"><i class="fas fa-times"></i></button>
+    <!-- مودال المشترك -->
+    <div id="modal-sub" class="fixed inset-0 bg-indigo-950/80 backdrop-blur-md hidden z-[200] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+            <div class="main-gradient p-6 text-white flex justify-between items-center">
+                <h3 id="modal-title" class="font-black text-xl">بيانات المشترك</h3>
+                <button onclick="closeModals()" class="text-2xl"><i class="fas fa-times"></i></button>
             </div>
-            <form id="form-sub" onsubmit="saveSub(event)" class="p-6 space-y-4">
+            <form id="form-sub" onsubmit="handleSubSubmit(event)" class="p-6 space-y-4">
                 <input type="hidden" id="edit-id">
-                <input id="in-name" placeholder="اسم المشترك" required class="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-blue-500 outline-none transition-all">
-                <div class="grid grid-cols-2 gap-3">
-                    <select id="in-service" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                        <option>ChatGPT</option><option>Netflix</option><option>YouTube</option><option>Canva</option><option>Discord</option><option>Spotify</option>
-                    </select>
-                    <input id="in-price" type="number" step="0.1" placeholder="السعر $" required class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                <div class="space-y-4">
+                    <input id="in-name" placeholder="اسم الزبون" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-indigo-600">
+                    <div class="grid grid-cols-2 gap-3">
+                        <select id="in-service" class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                            <option>ChatGPT</option><option>Netflix</option><option>YouTube</option><option>Canva</option><option>Discord</option><option>Spotify</option>
+                        </select>
+                        <input id="in-price" type="number" step="0.1" placeholder="السعر $" required class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                    </div>
+                    <input id="in-email" type="email" placeholder="الإيميل" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                    <div class="grid grid-cols-2 gap-3">
+                        <input id="in-expiry" type="date" required class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                        <select id="in-paid" class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                            <option value="true">واصل ✅</option><option value="false">مطلب ❌</option>
+                        </select>
+                    </div>
                 </div>
-                <input id="in-email" type="email" placeholder="الإيميل" required class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                <div class="grid grid-cols-2 gap-3">
-                    <input id="in-expiry" type="date" required class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                    <select id="in-paid" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                        <option value="true">واصل ✅</option><option value="false">مطلب ❌</option>
-                    </select>
-                </div>
-                <button type="submit" id="btn-save-sub" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black shadow-xl disabled:opacity-50">حفظ في السحابة</button>
+                <button type="submit" id="save-btn" class="w-full main-gradient text-white py-5 rounded-2xl font-black shadow-xl mt-4">حفظ في السحابة</button>
             </form>
         </div>
     </div>
 
-    <div id="modal-exp" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden z-[200] p-4 flex items-center justify-center">
-        <div class="bg-white w-full max-w-sm rounded-[2.5rem] overflow-hidden">
-            <div class="bg-red-600 p-6 text-white font-black">إضافة صرفية</div>
-            <form onsubmit="saveExp(event)" class="p-6 space-y-4">
-                <input id="in-exp-reason" placeholder="سبب الصرف" required class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                <input id="in-exp-amount" type="number" step="0.1" placeholder="المبلغ $" required class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none">
-                <button type="submit" class="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">حفظ الصرفية</button>
+    <!-- مودال الصرفية -->
+    <div id="modal-exp" class="fixed inset-0 bg-red-950/80 backdrop-blur-md hidden z-[200] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl">
+            <div class="bg-red-600 p-6 text-white font-black">تسجيل صرفية جديدة</div>
+            <form onsubmit="handleExpSubmit(event)" class="p-6 space-y-4">
+                <input id="exp-reason" placeholder="ماذا اشتريت؟" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                <input id="exp-amount" type="number" step="0.1" placeholder="المبلغ $" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none">
+                <button type="submit" class="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">تأكيد الخصم</button>
+                <button type="button" onclick="closeModals()" class="w-full text-gray-400 font-bold">إلغاء</button>
             </form>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
+        // إعدادات فايربيس
         const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-ultra-store';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-pro-v1';
         
         let db, auth, subsCol, expsCol;
         let subscriptions = [], expenses = [], activeFilter = 'all';
 
-        // 1. Core Connection
-        async function start() {
+        // تهيئة النظام
+        async function startup() {
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // AUTH FIRST
-                const userCredential = await signInAnonymously(auth);
-                const user = userCredential.user;
-
-                if (user) {
+                // تسجيل الدخول المجهول (تم تفعيله الآن!)
+                const userCred = await signInAnonymously(auth);
+                
+                if (userCred.user) {
                     subsCol = collection(db, 'artifacts', appId, 'public', 'data', 'subs');
                     expsCol = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
 
-                    // Success UI
-                    document.getElementById('conn-dot').classList.replace('bg-red-500', 'bg-emerald-500');
-                    document.getElementById('conn-status').innerText = "متصل سحابياً";
-                    document.getElementById('loading-overlay').classList.add('hidden');
+                    // تحديث واجهة الاتصال
+                    document.getElementById('sync-dot').classList.replace('bg-red-500', 'bg-emerald-500');
+                    document.getElementById('sync-dot').style.boxShadow = '0 0 10px #10b981';
+                    document.getElementById('sync-text').innerText = "متصل وسحابي ✅";
+                    document.getElementById('loader').style.display = 'none';
 
-                    // Real-time Sync
+                    // المزامنة الحية للمشتركين
                     onSnapshot(subsCol, (snap) => {
                         subscriptions = snap.docs.map(d => ({id: d.id, ...d.data()}));
                         render();
-                    }, (err) => console.error("Firestore Sub Error:", err));
+                    });
 
+                    // المزامنة الحية للصرفيات
                     onSnapshot(expsCol, (snap) => {
                         expenses = snap.docs.map(d => ({id: d.id, ...d.data()}));
                         render();
-                    }, (err) => console.error("Firestore Exp Error:", err));
+                    });
                 }
             } catch (err) {
-                console.error("Critical Connection Error:", err);
-                alert("فشل الاتصال بـ Firebase. تأكد من تفعيل Anonymous Auth والقواعد.");
+                console.error(err);
+                alert("تنبيه: تأكد من تفعيل Anonymous Auth في إعدادات Firebase");
             }
         }
 
-        // 2. Logic & Handlers
-        window.showSection = (s) => {
-            document.getElementById('sec-subs').classList.toggle('hidden', s !== 'subs');
-            document.getElementById('sec-exps').classList.toggle('hidden', s !== 'exps');
+        // التحكم بالواجهات
+        window.changeTab = (t) => {
+            document.getElementById('sec-subs').classList.toggle('hidden', t !== 'subs');
+            document.getElementById('sec-exps').classList.toggle('hidden', t !== 'exps');
+            document.getElementById('fab').classList.toggle('hidden', t !== 'subs');
         };
 
         window.setFilter = (f) => {
             activeFilter = f;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
-            document.getElementById('btn-' + f).classList.add('tab-active');
+            document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active-tab'));
+            document.getElementById('f-' + f).classList.add('active-tab');
             render();
         };
 
         window.openSubModal = (data = null) => {
             document.getElementById('form-sub').reset();
             document.getElementById('edit-id').value = data ? data.id : '';
+            document.getElementById('modal-title').innerText = data ? 'تعديل مشترك' : 'إضافة مشترك';
             if(data) {
                 document.getElementById('in-name').value = data.name;
                 document.getElementById('in-service').value = data.service;
@@ -211,107 +267,116 @@
             document.getElementById('modal-exp').classList.add('hidden');
         };
 
-        window.saveSub = async (e) => {
+        // التعامل مع البيانات
+        window.handleSubSubmit = async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('btn-save-sub');
-            const id = document.getElementById('edit-id').value;
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true; btn.innerText = "جاري المزامنة...";
             
-            btn.disabled = true;
-            btn.innerText = "جاري المزامنة...";
-
-            const payload = {
+            const id = document.getElementById('edit-id').value;
+            const data = {
                 name: document.getElementById('in-name').value,
                 service: document.getElementById('in-service').value,
                 price: parseFloat(document.getElementById('in-price').value),
                 email: document.getElementById('in-email').value,
                 expiry: document.getElementById('in-expiry').value,
                 paid: document.getElementById('in-paid').value === 'true',
-                updated: Date.now()
+                timestamp: Date.now()
             };
 
             try {
-                if(id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id), payload);
-                else await addDoc(subsCol, payload);
+                if(id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id), data);
+                else await addDoc(subsCol, data);
                 closeModals();
-            } catch (err) {
-                alert("حدث خطأ أثناء الحفظ. تأكد من اتصال الإنترنت.");
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "حفظ في السحابة";
-            }
+            } catch (err) { alert("حدث خطأ! تأكد من القواعد السحابية."); }
+            finally { btn.disabled = false; btn.innerText = "حفظ في السحابة"; }
         };
 
-        window.saveExp = async (e) => {
+        window.handleExpSubmit = async (e) => {
             e.preventDefault();
-            const payload = {
-                reason: document.getElementById('in-exp-reason').value,
-                amount: parseFloat(document.getElementById('in-exp-amount').value),
+            const data = {
+                reason: document.getElementById('exp-reason').value,
+                amount: parseFloat(document.getElementById('exp-amount').value),
                 date: Date.now()
             };
-            await addDoc(expsCol, payload);
+            await addDoc(expsCol, data);
             closeModals();
         };
 
-        window.deleteSub = async (id) => { if(confirm('حذف من السحابة؟')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id)); };
-        window.deleteExp = async (id) => { if(confirm('حذف الصرفية؟')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', id)); };
+        window.deleteSub = async (id) => { if(confirm('حذف هذا المشترك نهائياً؟')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id)); };
+        window.deleteExp = async (id) => { if(confirm('حذف هذه الصرفية؟')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', id)); };
 
-        // 3. Render Engine
+        // المحرك الرسومي
         window.render = () => {
             const now = new Date().toISOString().split('T')[0];
-            const search = document.getElementById('sub-search').value.toLowerCase();
+            const search = document.getElementById('search-input').value.toLowerCase();
             
-            // Subs Render
-            let filtered = subscriptions.filter(s => s.name.toLowerCase().includes(search));
+            // 1. معالجة المشتركين
+            let filtered = subscriptions.filter(s => s.name.toLowerCase().includes(search) || s.service.toLowerCase().includes(search));
             if(activeFilter === 'unpaid') filtered = filtered.filter(s => !s.paid);
             if(activeFilter === 'expired') filtered = filtered.filter(s => s.expiry < now);
 
             document.getElementById('subs-grid').innerHTML = filtered.map(s => `
-                <div class="bg-white p-6 rounded-[2rem] sub-card relative overflow-hidden">
+                <div class="bg-white p-6 rounded-[2.5rem] card-shadow border border-gray-50 relative group">
                     <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h3 class="font-black text-slate-800">${s.name}</h3>
-                            <p class="text-[10px] text-blue-600 font-black uppercase tracking-widest">${s.service}</p>
-                        </div>
-                        <div class="text-left">
-                            <div class="text-xl font-black text-slate-900">$${s.price}</div>
-                            <div class="text-[9px] font-black ${s.paid ? 'text-emerald-500' : 'text-red-500'}">
-                                ${s.paid ? 'واصل ✅' : 'مطلب ❌'}
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 main-gradient text-white rounded-2xl flex items-center justify-center text-xl shadow-lg">
+                                <i class="fas ${getIcon(s.service)}"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-black text-slate-800 text-sm">${s.name}</h3>
+                                <p class="text-[10px] text-indigo-500 font-bold">${s.service}</p>
                             </div>
                         </div>
+                        <div class="text-left font-black">
+                            <div class="text-lg">$${s.price}</div>
+                            <span class="text-[9px] px-2 py-0.5 rounded-full ${s.paid ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600 animate-pulse'}">
+                                ${s.paid ? 'واصل' : 'مطلب'}
+                            </span>
+                        </div>
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-2xl mb-4 flex justify-between items-center">
-                        <span class="text-[10px] text-slate-400 font-bold uppercase">الانتهاء</span>
-                        <span class="text-xs font-black ${s.expiry < now ? 'text-red-600' : 'text-slate-700'}">${s.expiry}</span>
+                    <div class="bg-gray-50 p-3 rounded-2xl mb-4 text-[11px] font-bold flex justify-between">
+                        <span class="text-gray-400">تاريخ الانتهاء:</span>
+                        <span class="${s.expiry < now ? 'text-red-600' : 'text-slate-700'}">${s.expiry}</span>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick='openSubModal(${JSON.stringify(s)})' class="flex-1 bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black">تعديل</button>
-                        <button onclick="deleteSub('${s.id}')" class="w-12 h-11 flex items-center justify-center text-slate-200 hover:text-red-500 transition-colors"><i class="fas fa-trash"></i></button>
+                        <button onclick='openSubModal(${JSON.stringify(s)})' class="flex-1 bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black hover:bg-indigo-900 transition-colors">تعديل</button>
+                        <button onclick="deleteSub('${s.id}')" class="w-12 h-11 flex items-center justify-center text-gray-200 hover:text-red-500"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `).join('');
 
-            // Expenses Render
-            document.getElementById('exps-list').innerHTML = expenses.map(e => `
-                <div class="bg-white p-5 rounded-3xl border-r-8 border-red-500 shadow-sm flex justify-between items-center">
-                    <div>
-                        <p class="font-black text-slate-800">${e.reason}</p>
-                        <p class="text-[10px] text-slate-400">${new Date(e.date).toLocaleDateString()}</p>
+            // 2. معالجة الصرفيات
+            document.getElementById('exps-list').innerHTML = expenses.sort((a,b) => b.date - a.date).map(e => `
+                <div class="bg-white p-4 rounded-3xl flex justify-between items-center shadow-sm border-r-4 border-red-500">
+                    <div class="pr-2">
+                        <p class="font-bold text-slate-800 text-sm">${e.reason}</p>
+                        <p class="text-[10px] text-gray-400">${new Date(e.date).toLocaleDateString()}</p>
                     </div>
                     <div class="flex items-center gap-4">
-                        <span class="text-lg font-black text-red-600">$${e.amount}</span>
-                        <button onclick="deleteExp('${e.id}')" class="text-slate-200 hover:text-red-600"><i class="fas fa-times-circle"></i></button>
+                        <span class="font-black text-red-600">$${e.amount}</span>
+                        <button onclick="deleteExp('${e.id}')" class="text-gray-200 hover:text-red-600 transition-colors"><i class="fas fa-circle-xmark text-xl"></i></button>
                     </div>
                 </div>
             `).join('');
 
-            // Stats Update
-            const totalSales = subscriptions.filter(s => s.paid).reduce((acc, curr) => acc + curr.price, 0);
-            const totalExps = expenses.reduce((acc, curr) => acc + curr.amount, 0);
-            document.getElementById('stat-net').innerText = '$' + (totalSales - totalExps).toFixed(1);
-            document.getElementById('stat-exps').innerText = '$' + totalExps.toFixed(1);
+            // 3. تحديث الإحصائيات
+            const revenue = subscriptions.filter(s => s.paid).reduce((a, b) => a + b.price, 0);
+            const totalExps = expenses.reduce((a, b) => a + b.amount, 0);
+            const debts = subscriptions.filter(s => !s.paid).reduce((a, b) => a + b.price, 0);
+
+            document.getElementById('dash-net').innerText = '$' + (revenue - totalExps).toFixed(1);
+            document.getElementById('dash-exps').innerText = '$' + totalExps.toFixed(1);
+            document.getElementById('dash-debt').innerText = '$' + debts.toFixed(1);
+            document.getElementById('dash-count').innerText = subscriptions.length;
         };
 
-        start();
+        function getIcon(s) {
+            const icons = { 'ChatGPT': 'fa-robot', 'Netflix': 'fa-tv', 'YouTube': 'fa-play', 'Canva': 'fa-pen-nib', 'Discord': 'fa-ghost', 'Spotify': 'fa-music' };
+            return icons[s] || 'fa-gem';
+        }
+
+        startup();
     </script>
 </body>
 </html>
