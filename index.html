@@ -3,126 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>آرين ستور - Arin Store Cloud</title>
+    <title>آرين ستور - Arin Store V3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-        body { font-family: 'Cairo', sans-serif; background-color: #f1f5f9; }
-        .card-active { border: 2px solid transparent; transition: 0.3s; }
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+        body { font-family: 'Cairo', sans-serif; background-color: #f3f4f6; }
+        .tab-btn.active { background-color: #312e81; color: white; }
         .card-expired { border: 2px solid #ef4444 !important; background-color: #fef2f2; }
-        .card-near { border: 2px solid #f97316 !important; background-color: #fffaf5; }
-        .filter-btn-active { background-color: #312e81 !important; color: white !important; }
     </style>
 </head>
 <body class="pb-20">
 
-    <!-- Header -->
-    <header class="bg-indigo-950 text-white p-4 sticky top-0 z-[100] shadow-xl">
+    <!-- Navbar -->
+    <nav class="bg-indigo-950 text-white p-4 sticky top-0 z-[100] shadow-md">
         <div class="container mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-2">
-                <i class="fas fa-bolt text-yellow-400"></i>
-                <h1 class="text-xl font-black">آرين ستور</h1>
-            </div>
-            <div id="conn-status" class="text-[10px] bg-red-500/20 text-red-400 px-3 py-1 rounded-full border border-red-500/30">
-                وضع الأوفلاين (غير متصل)
+            <h1 class="text-xl font-black">آرين ستور</h1>
+            <div id="status-badge" class="text-[10px] px-3 py-1 rounded-full bg-orange-500/20 text-orange-400">
+                جاري التحميل...
             </div>
         </div>
-    </header>
+    </nav>
 
     <main class="container mx-auto p-4 max-w-5xl">
         
         <!-- Stats -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            <div class="bg-white p-4 rounded-3xl shadow-sm border-b-4 border-indigo-600">
+            <div class="bg-white p-4 rounded-3xl shadow-sm border-r-4 border-indigo-600">
                 <p class="text-gray-400 text-[10px] font-bold">المشتركين</p>
-                <h2 id="s-total" class="text-xl font-black">0</h2>
+                <h2 id="stat-total" class="text-xl font-black">0</h2>
             </div>
-            <div class="bg-white p-4 rounded-3xl shadow-sm border-b-4 border-red-600">
+            <div class="bg-white p-4 rounded-3xl shadow-sm border-r-4 border-red-600">
                 <p class="text-gray-400 text-[10px] font-bold">منتهي</p>
-                <h2 id="s-expired" class="text-xl font-black text-red-600">0</h2>
+                <h2 id="stat-expired" class="text-xl font-black text-red-600">0</h2>
             </div>
-            <div class="bg-white p-4 rounded-3xl shadow-sm border-b-4 border-emerald-500">
+            <div class="bg-white p-4 rounded-3xl shadow-sm border-r-4 border-emerald-500">
                 <p class="text-gray-400 text-[10px] font-bold">الربح الصافي</p>
-                <h2 id="s-profit" class="text-xl font-black text-emerald-600">$0</h2>
+                <h2 id="stat-profit" class="text-xl font-black text-emerald-600">$0</h2>
             </div>
-            <div class="bg-white p-4 rounded-3xl shadow-sm border-b-4 border-orange-500">
+            <div class="bg-white p-4 rounded-3xl shadow-sm border-r-4 border-orange-500">
                 <p class="text-gray-400 text-[10px] font-bold">قرب ينتهي</p>
-                <h2 id="s-near" class="text-xl font-black text-orange-600">0</h2>
+                <h2 id="stat-near" class="text-xl font-black text-orange-600">0</h2>
             </div>
         </div>
 
-        <!-- Filters & Actions -->
+        <!-- Controls -->
         <div class="flex flex-col gap-4 mb-6">
-            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                <button onclick="setFilter('all')" id="f-all" class="filter-btn-active whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold bg-white text-gray-500 shadow-sm">الكل</button>
-                <button onclick="setFilter('active')" id="f-active" class="whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold bg-white text-gray-500 shadow-sm">نشط</button>
-                <button onclick="setFilter('expired')" id="f-expired" class="whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold bg-white text-gray-500 shadow-sm text-red-500">منتهي فقط ⚠️</button>
-                <button onclick="setFilter('near')" id="f-near" class="whitespace-nowrap px-5 py-2 rounded-xl text-xs font-bold bg-white text-gray-500 shadow-sm text-orange-500">قرب ينتهي</button>
+            <div class="flex gap-2 overflow-x-auto pb-2">
+                <button onclick="setFilter('all')" id="btn-all" class="tab-btn active whitespace-nowrap px-6 py-2 rounded-xl text-xs font-bold bg-white text-gray-500">الكل</button>
+                <button onclick="setFilter('expired')" id="btn-expired" class="tab-btn whitespace-nowrap px-6 py-2 rounded-xl text-xs font-bold bg-white text-red-500">المنتهي ⚠️</button>
+                <button onclick="setFilter('near')" id="btn-near" class="tab-btn whitespace-nowrap px-6 py-2 rounded-xl text-xs font-bold bg-white text-orange-500">قرب ينتهي</button>
             </div>
             
             <div class="flex gap-2">
-                <div class="relative flex-1">
-                    <i class="fas fa-search absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    <input type="text" id="search" oninput="render()" placeholder="ابحث..." class="w-full pr-10 pl-4 py-3 rounded-2xl bg-white border-none shadow-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                </div>
-                <button onclick="openModal()" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg"><i class="fas fa-plus"></i></button>
+                <input type="text" id="search" oninput="render()" placeholder="ابحث باسم الزبون أو الخدمة..." 
+                    class="flex-1 p-3 rounded-2xl bg-white border-none shadow-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                <button onclick="openModal()" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg">
+                    <i class="fas fa-plus"></i>
+                </button>
             </div>
         </div>
 
-        <!-- List -->
-        <div id="list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <!-- Grid -->
+        <div id="subs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- سيتم ملء البيانات هنا -->
+        </div>
     </main>
 
     <!-- Modal -->
     <div id="modal" class="fixed inset-0 bg-black/60 z-[200] hidden items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl">
             <div class="p-6 bg-indigo-950 text-white flex justify-between">
-                <h2 class="font-black">إضافة / تعديل</h2>
-                <button onclick="closeModal()">&times;</button>
+                <h2 class="font-black">إضافة / تعديل مشترك</h2>
+                <button onclick="closeModal()"><i class="fas fa-times"></i></button>
             </div>
-            <form id="form" onsubmit="save(event)" class="p-6 space-y-3">
+            <form id="form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4">
                 <input type="hidden" id="edit-id">
                 <input id="in-name" placeholder="اسم الزبون" required class="w-full p-3 bg-gray-50 border rounded-xl outline-none">
+                
                 <div class="grid grid-cols-2 gap-2">
                     <select id="in-service" class="p-3 bg-gray-50 border rounded-xl">
                         <option>ChatGPT</option><option>Netflix</option><option>YouTube</option><option>Canva</option><option>Nitro</option>
                     </select>
-                    <select id="in-dur" onchange="autoDate()" class="p-3 bg-gray-50 border rounded-xl">
-                        <option value="1">شهري</option><option value="12">سنوي</option><option value="0">مخصص</option>
+                    <select id="in-duration" onchange="updateDate()" class="p-3 bg-gray-50 border rounded-xl">
+                        <option value="1">شهري (1)</option>
+                        <option value="12">سنوي (12)</option>
+                        <option value="0">مخصص</option>
                     </select>
                 </div>
-                <input id="in-email" type="email" placeholder="الإيميل" required class="w-full p-3 bg-gray-50 border rounded-xl">
+
+                <input id="in-email" type="email" placeholder="إيميل الحساب" required class="w-full p-3 bg-gray-50 border rounded-xl">
                 <input id="in-phone" placeholder="رقم الهاتف (اختياري)" class="w-full p-3 bg-gray-50 border rounded-xl">
+                
                 <div class="grid grid-cols-2 gap-2">
                     <input id="in-price" type="number" step="0.1" placeholder="السعر $" required class="p-3 bg-gray-50 border rounded-xl">
                     <input id="in-date" type="date" required class="p-3 bg-gray-50 border rounded-xl">
                 </div>
+
                 <select id="in-paid" class="w-full p-3 bg-gray-50 border rounded-xl">
-                    <option value="true">واصل ✅</option><option value="false">مطلوب ❌</option>
+                    <option value="true">واصل ✅</option>
+                    <option value="false">مطلب ❌</option>
                 </select>
-                <button type="submit" class="w-full bg-indigo-900 text-white py-4 rounded-2xl font-black">حفظ البيانات</button>
+
+                <button type="submit" id="save-btn" class="w-full bg-indigo-900 text-white py-4 rounded-2xl font-black">
+                    حفظ البيانات
+                </button>
             </form>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-        // ملاحظة: لكي يعمل على GitHub، يجب وضع بيانات Firebase الخاصة بك هنا
-        let config = {};
-        try { config = JSON.parse(__firebase_config); } catch(e) { 
-            console.error("Firebase config not found. Please add it manually for GitHub deployment.");
-        }
-        
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-fixed-v1';
-        let db, auth;
-        let items = [];
+        // Global State
+        let db, auth, subsCollection;
+        let subscriptions = [];
         let currentFilter = 'all';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-fixed-prod';
 
-        // Initialize UI immediately
+        // 1. Initialize UI First
         window.openModal = (data = null) => {
             document.getElementById('form').reset();
             document.getElementById('edit-id').value = data ? data.id : '';
@@ -135,15 +136,15 @@
                 document.getElementById('in-date').value = data.date;
                 document.getElementById('in-paid').value = data.paid.toString();
             } else {
-                autoDate();
+                updateDate();
             }
             document.getElementById('modal').classList.replace('hidden', 'flex');
         };
 
         window.closeModal = () => document.getElementById('modal').classList.replace('flex', 'hidden');
 
-        window.autoDate = () => {
-            const m = parseInt(document.getElementById('in-dur').value);
+        window.updateDate = () => {
+            const m = parseInt(document.getElementById('in-duration').value);
             if(m > 0) {
                 const d = new Date();
                 d.setMonth(d.getMonth() + m);
@@ -153,30 +154,44 @@
 
         window.setFilter = (f) => {
             currentFilter = f;
-            document.querySelectorAll('[id^="f-"]').forEach(btn => btn.classList.remove('filter-btn-active'));
-            document.getElementById('f-' + f).classList.add('filter-btn-active');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-' + f).classList.add('active');
             render();
         };
 
-        // Firebase Sync
-        async function connect() {
-            if(!config.apiKey) return;
-            const app = initializeApp(config);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            
-            await signInAnonymously(auth);
-            document.getElementById('conn-status').innerText = "متصل سحابياً ✅";
-            document.getElementById('conn-status').className = "text-[10px] bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/30";
+        // 2. Firebase Connection with error handling
+        async function initFirebase() {
+            try {
+                const config = JSON.parse(__firebase_config);
+                const app = initializeApp(config);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                await signInAnonymously(auth);
+                subsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'subscriptions');
+                
+                document.getElementById('status-badge').innerText = "متصل سحابياً ✅";
+                document.getElementById('status-badge').className = "text-[10px] px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400";
 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'subs'), (s) => {
-                items = s.docs.map(d => ({id: d.id, ...d.data()}));
-                render();
-            });
+                onSnapshot(subsCollection, (snapshot) => {
+                    subscriptions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    render();
+                }, (error) => {
+                    console.error("Snapshot error:", error);
+                });
+            } catch (error) {
+                console.error("Firebase Init Error:", error);
+                document.getElementById('status-badge').innerText = "وضع الأوفلاين ⚠️";
+            }
         }
 
-        window.save = async (e) => {
+        // 3. Data Actions
+        window.handleFormSubmit = async (e) => {
             e.preventDefault();
+            const btn = document.getElementById('save-btn');
+            btn.disabled = true;
+            btn.innerText = "جاري الحفظ...";
+
             const id = document.getElementById('edit-id').value;
             const data = {
                 name: document.getElementById('in-name').value,
@@ -186,86 +201,93 @@
                 price: parseFloat(document.getElementById('in-price').value),
                 date: document.getElementById('in-date').value,
                 paid: document.getElementById('in-paid').value === 'true',
-                ts: Date.now()
+                updatedAt: Date.now()
             };
-            if(db) {
-                const col = collection(db, 'artifacts', appId, 'public', 'data', 'subs');
-                id ? await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id), data) : await addDoc(col, data);
+
+            try {
+                if (id) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subscriptions', id), data);
+                } else {
+                    await addDoc(subsCollection, data);
+                }
+                closeModal();
+            } catch (error) {
+                alert("حدث خطأ أثناء الحفظ، يرجى التأكد من الاتصال.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "حفظ البيانات";
             }
-            closeModal();
         };
 
-        window.del = async (id) => {
-            if(confirm('حذف؟') && db) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id));
-        };
-
-        window.remind = (id) => {
-            const s = items.find(x => x.id === id);
-            const msg = `تذكير من آرين ستور 👑: اشتراكك في ${s.service} قارب على الانتهاء.`;
-            const url = s.phone ? `https://wa.me/${s.phone.replace('+','')}` : `https://t.me/share/url?url=${encodeURIComponent(msg)}`;
-            window.open(url, '_blank');
+        window.deleteSub = async (id) => {
+            if(confirm('هل أنت متأكد من الحذف نهائياً؟')) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subscriptions', id));
+            }
         };
 
         window.render = () => {
-            const q = document.getElementById('search').value.toLowerCase();
-            const list = document.getElementById('list');
+            const query = document.getElementById('search').value.toLowerCase();
+            const grid = document.getElementById('subs-grid');
             const now = new Date();
 
-            let filtered = items.filter(i => i.name.toLowerCase().includes(q) || i.service.toLowerCase().includes(q));
+            let filtered = subscriptions.filter(s => 
+                s.name.toLowerCase().includes(query) || 
+                s.service.toLowerCase().includes(query)
+            );
 
             if(currentFilter === 'expired') {
-                filtered = filtered.filter(i => new Date(i.date) <= now);
+                filtered = filtered.filter(s => new Date(s.date) <= now);
             } else if(currentFilter === 'near') {
-                filtered = filtered.filter(i => {
-                    const diff = Math.ceil((new Date(i.date) - now) / 86400000);
+                filtered = filtered.filter(s => {
+                    const diff = Math.ceil((new Date(s.date) - now) / 86400000);
                     return diff > 0 && diff <= 3;
                 });
-            } else if(currentFilter === 'active') {
-                filtered = filtered.filter(i => new Date(i.date) > now);
             }
 
-            list.innerHTML = filtered.map(i => {
-                const diff = Math.ceil((new Date(i.date) - now) / 86400000);
-                const isExp = diff <= 0;
+            grid.innerHTML = filtered.map(s => {
+                const diff = Math.ceil((new Date(s.date) - now) / 86400000);
+                const isExpired = diff <= 0;
                 const isNear = diff > 0 && diff <= 3;
-                
+
                 return `
-                <div class="bg-white p-5 rounded-[2rem] shadow-sm card-active ${isExp ? 'card-expired' : (isNear ? 'card-near' : '')}">
-                    <div class="flex justify-between items-start mb-3">
+                <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 ${isExpired ? 'card-expired' : ''}">
+                    <div class="flex justify-between items-start mb-4">
                         <div>
-                            <h3 class="font-black text-slate-800">${i.name}</h3>
-                            <p class="text-[10px] text-indigo-600 font-bold">${i.service}</p>
+                            <h3 class="font-black text-slate-800">${s.name}</h3>
+                            <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold uppercase">${s.service}</span>
                         </div>
                         <div class="text-left">
-                            <p class="font-black text-slate-900">$${i.price}</p>
-                            <span class="text-[9px] font-bold ${i.paid ? 'text-emerald-500' : 'text-red-500 animate-pulse'}">${i.paid ? 'واصل' : 'مطلوب'}</span>
+                            <p class="font-black text-slate-900">$${s.price}</p>
+                            <span class="text-[9px] font-bold ${s.paid ? 'text-emerald-500' : 'text-red-500'}">${s.paid ? 'واصل ✅' : 'مطلب ❌'}</span>
                         </div>
                     </div>
-                    <div class="text-[9px] text-gray-400 mb-4 truncate">${i.email}</div>
-                    <div class="flex justify-between items-center text-xs bg-gray-50 p-2 rounded-xl mb-4">
-                        <span class="text-gray-400">الحالة:</span>
-                        <span class="font-black ${isExp ? 'text-red-600' : 'text-slate-700'}">${isExp ? 'منتهي ⚠️' : diff + ' يوم'}</span>
+                    <div class="text-[10px] text-gray-400 mb-4 truncate font-mono">${s.email}</div>
+                    <div class="flex justify-between items-center text-xs bg-gray-50 p-3 rounded-xl mb-4">
+                        <span class="text-gray-400 font-bold">باقي للانتهاء:</span>
+                        <span class="font-black ${isExpired ? 'text-red-600' : 'text-indigo-900'}">${isExpired ? 'منتهي ⚠️' : diff + ' يوم'}</span>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="remind('${i.id}')" class="flex-1 bg-indigo-950 text-white py-2 rounded-lg text-[10px] font-bold">تذكير</button>
-                        <button onclick='openModal(${JSON.stringify(i)})' class="p-2 bg-gray-100 text-gray-400 rounded-lg"><i class="fas fa-edit"></i></button>
-                        <button onclick="del('${i.id}')" class="p-2 bg-gray-100 text-gray-200 rounded-lg hover:text-red-500"><i class="fas fa-trash"></i></button>
+                        <button onclick='openModal(${JSON.stringify(s)})' class="flex-1 bg-slate-900 text-white py-2.5 rounded-xl text-[10px] font-bold">تعديل</button>
+                        <button onclick="deleteSub('${s.id}')" class="p-2.5 bg-gray-100 text-gray-300 rounded-xl hover:text-red-500 transition-colors"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>`;
             }).join('');
 
-            // Stats
-            document.getElementById('s-total').innerText = items.length;
-            document.getElementById('s-expired').innerText = items.filter(i => new Date(i.date) <= now).length;
-            document.getElementById('s-near').innerText = items.filter(i => {
-                const d = Math.ceil((new Date(i.date) - now) / 86400000);
+            // Update Statistics
+            document.getElementById('stat-total').innerText = subscriptions.length;
+            document.getElementById('stat-expired').innerText = subscriptions.filter(s => new Date(s.date) <= now).length;
+            document.getElementById('stat-near').innerText = subscriptions.filter(s => {
+                const d = Math.ceil((new Date(s.date) - now) / 86400000);
                 return d > 0 && d <= 3;
             }).length;
-            const rev = items.filter(i => i.paid).reduce((a,b) => a + b.price, 0);
-            document.getElementById('s-profit').innerText = '$' + rev.toFixed(1);
+            const profit = subscriptions.filter(s => s.paid).reduce((acc, curr) => acc + curr.price, 0);
+            document.getElementById('stat-profit').innerText = '$' + profit.toFixed(1);
         };
 
-        connect();
+        // Start everything
+        initFirebase();
+        render();
+
     </script>
 </body>
 </html>
