@@ -2,381 +2,249 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>آرين ستور | النسخة السحابية</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>آرين ستور - Debug Mode</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-        
-        body {
-            font-family: 'Cairo', sans-serif;
-            background-color: #f3f4f6;
-            color: #111827;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .main-gradient {
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
-        }
-
-        .card-shadow {
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-        }
-
-        .nav-tab {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .active-tab {
-            background-color: #1e1b4b;
-            color: white;
-            transform: translateY(-2px);
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        /* تحسينات الموبايل */
-        @media (max-width: 640px) {
-            .container { padding: 0 12px; }
-            .modal-box { width: 95%; border-radius: 24px; }
-        }
-
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+        body { font-family: 'Cairo', sans-serif; background: #f0f2f5; }
+        .log-box { background: #1a1a1a; color: #00ff00; font-family: monospace; font-size: 10px; padding: 10px; border-radius: 8px; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
-<body class="pb-32">
+<body class="pb-24">
 
-    <!-- شاشة التحميل الذكية -->
-    <div id="loader" class="fixed inset-0 bg-white z-[999] flex flex-col items-center justify-center">
-        <div class="w-12 h-12 border-4 border-indigo-900 border-t-transparent rounded-full animate-spin"></div>
-        <p class="mt-4 font-bold text-indigo-900 animate-pulse">جاري تأمين الاتصال السحابي...</p>
+    <!-- نافذة التشخيص (تظهر فقط عند وجود مشكلة أو للتتبع) -->
+    <div id="debug-panel" class="p-4 bg-white border-b shadow-sm">
+        <h2 class="text-xs font-bold mb-2 text-gray-500 uppercase tracking-widest">حالة النظام السحابي</h2>
+        <div id="console-logs" class="log-box mb-2">
+            > جاري بدء التشغيل...
+        </div>
+        <div id="connection-indicator" class="flex items-center gap-2 text-xs font-bold">
+            <span id="stat-auth" class="px-2 py-1 bg-gray-200 rounded">Auth: ؟</span>
+            <span id="stat-db" class="px-2 py-1 bg-gray-200 rounded">DB: ؟</span>
+        </div>
     </div>
 
-    <!-- الهيدر ولوحة الإحصائيات -->
-    <header class="main-gradient text-white pt-8 pb-16 px-6 rounded-b-[40px] shadow-xl relative overflow-hidden">
-        <div class="absolute top-0 right-0 p-4 opacity-10">
-            <i class="fas fa-shield-halved text-9xl"></i>
-        </div>
-
-        <div class="container mx-auto relative z-10">
-            <div class="flex justify-between items-center mb-8">
-                <div>
-                    <h1 class="text-2xl font-black tracking-tight">آرين ستور <span class="bg-indigo-500 text-[10px] px-2 py-1 rounded-lg mr-2 uppercase">Pro</span></h1>
-                    <div class="flex items-center gap-2 mt-1">
-                        <span id="sync-dot" class="status-dot bg-red-500 shadow-[0_0_8px_red]"></span>
-                        <span id="sync-text" class="text-[10px] text-indigo-200 font-bold tracking-wide">جاري الاتصال...</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="changeTab('subs')" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md"><i class="fas fa-users-gear"></i></button>
-                    <button onclick="changeTab('exps')" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md"><i class="fas fa-file-invoice-dollar"></i></button>
-                </div>
+    <header class="bg-slate-900 text-white p-6 rounded-b-[30px] shadow-lg">
+        <div class="flex justify-between items-center">
+            <h1 class="text-xl font-black">آرين ستور <span class="text-blue-400 text-sm">V3</span></h1>
+            <div class="flex gap-2">
+                <button onclick="switchTab('subs')" class="p-2 bg-white/10 rounded-lg"><i class="fas fa-users"></i></button>
+                <button onclick="switchTab('exps')" class="p-2 bg-white/10 rounded-lg"><i class="fas fa-wallet"></i></button>
             </div>
-
-            <!-- Dashboard -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
-                    <p class="text-[10px] text-indigo-200 font-bold">صافي الربح</p>
-                    <h2 id="dash-net" class="text-xl font-black text-emerald-400">$0</h2>
-                </div>
-                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
-                    <p class="text-[10px] text-indigo-200 font-bold">الصرفيات</p>
-                    <h2 id="dash-exps" class="text-xl font-black text-red-400">$0</h2>
-                </div>
-                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
-                    <p class="text-[10px] text-indigo-200 font-bold">المطاليب</p>
-                    <h2 id="dash-debt" class="text-xl font-black text-orange-400">$0</h2>
-                </div>
-                <div class="bg-white/10 backdrop-blur-lg p-4 rounded-3xl border border-white/10">
-                    <p class="text-[10px] text-indigo-200 font-bold">المشتركين</p>
-                    <h2 id="dash-count" class="text-xl font-black">0</h2>
-                </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-6">
+            <div class="bg-white/5 p-3 rounded-2xl border border-white/10">
+                <p class="text-[10px] text-gray-400">صافي الربح</p>
+                <h2 id="total-profit" class="text-lg font-black text-emerald-400">$0</h2>
+            </div>
+            <div class="bg-white/5 p-3 rounded-2xl border border-white/10">
+                <p class="text-[10px] text-gray-400">الصرفيات</p>
+                <h2 id="total-exps" class="text-lg font-black text-red-400">$0</h2>
             </div>
         </div>
     </header>
 
-    <main class="container mx-auto px-4 -mt-8 relative z-20">
-        
+    <main class="p-4">
         <!-- قسم المشتركين -->
-        <section id="sec-subs" class="space-y-4">
-            <div class="bg-white p-2 rounded-2xl shadow-lg border border-gray-100 flex items-center px-4">
-                <i class="fas fa-search text-gray-300"></i>
-                <input type="text" id="search-input" oninput="render()" placeholder="ابحث باسم المشترك أو الخدمة..." class="w-full py-3 px-3 outline-none font-bold text-sm bg-transparent text-gray-700">
-            </div>
-
-            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                <button onclick="setFilter('all')" id="f-all" class="nav-tab active-tab px-6 py-2 rounded-full text-xs font-black shadow-sm">الكل</button>
-                <button onclick="setFilter('unpaid')" id="f-unpaid" class="nav-tab bg-white text-orange-600 px-6 py-2 rounded-full text-xs font-black shadow-sm">المطاليب</button>
-                <button onclick="setFilter('expired')" id="f-expired" class="nav-tab bg-white text-red-600 px-6 py-2 rounded-full text-xs font-black shadow-sm">المنتهية</button>
-            </div>
-
-            <div id="subs-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- المشتركين يظهرون هنا -->
-            </div>
-        </section>
+        <div id="view-subs" class="space-y-4">
+            <input type="text" id="search" oninput="render()" placeholder="بحث سريع..." class="w-full p-4 rounded-2xl border shadow-sm outline-none focus:border-blue-500">
+            <div id="subs-list" class="grid gap-3"></div>
+        </div>
 
         <!-- قسم الصرفيات -->
-        <section id="sec-exps" class="hidden space-y-4 animate-in fade-in duration-300">
-            <div class="flex justify-between items-center px-2">
-                <h2 class="font-black text-indigo-900 text-lg">سجل المصروفات</h2>
-                <button onclick="openExpModal()" class="bg-red-600 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg">إضافة صرفية +</button>
+        <div id="view-exps" class="hidden space-y-4">
+            <div class="flex justify-between items-center">
+                <h3 class="font-bold">سجل الصرفيات</h3>
+                <button onclick="openModal('exp')" class="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-bold">إضافة +</button>
             </div>
-            <div id="exps-list" class="space-y-3">
-                <!-- الصرفيات تظهر هنا -->
-            </div>
-        </section>
-
+            <div id="exps-list" class="space-y-2"></div>
+        </div>
     </main>
 
-    <!-- الزر العائم -->
-    <button onclick="openSubModal()" id="fab" class="fixed bottom-8 left-8 w-16 h-16 main-gradient text-white rounded-full shadow-2xl flex items-center justify-center text-2xl z-50 border-4 border-white transform active:scale-90 transition-transform">
+    <!-- أزرار الإضافة -->
+    <button onclick="openModal('sub')" class="fixed bottom-6 left-6 w-14 h-14 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center text-xl z-50">
         <i class="fas fa-plus"></i>
     </button>
 
-    <!-- مودال المشترك -->
-    <div id="modal-sub" class="fixed inset-0 bg-indigo-950/80 backdrop-blur-md hidden z-[200] flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-            <div class="main-gradient p-6 text-white flex justify-between items-center">
-                <h3 id="modal-title" class="font-black text-xl">بيانات المشترك</h3>
-                <button onclick="closeModals()" class="text-2xl"><i class="fas fa-times"></i></button>
-            </div>
-            <form id="form-sub" onsubmit="handleSubSubmit(event)" class="p-6 space-y-4">
-                <input type="hidden" id="edit-id">
-                <div class="space-y-4">
-                    <input id="in-name" placeholder="اسم الزبون" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-indigo-600">
-                    <div class="grid grid-cols-2 gap-3">
-                        <select id="in-service" class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                            <option>ChatGPT</option><option>Netflix</option><option>YouTube</option><option>Canva</option><option>Discord</option><option>Spotify</option>
-                        </select>
-                        <input id="in-price" type="number" step="0.1" placeholder="السعر $" required class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                    </div>
-                    <input id="in-email" type="email" placeholder="الإيميل" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                    <div class="grid grid-cols-2 gap-3">
-                        <input id="in-expiry" type="date" required class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                        <select id="in-paid" class="p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                            <option value="true">واصل ✅</option><option value="false">مطلب ❌</option>
-                        </select>
-                    </div>
+    <!-- المودالات -->
+    <div id="modal-sub" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-[100] p-6 flex items-center justify-center">
+        <div class="bg-white w-full rounded-[25px] p-6">
+            <h3 class="font-black text-lg mb-4">إضافة مشترك</h3>
+            <form onsubmit="saveSub(event)" class="space-y-3">
+                <input id="s-name" placeholder="الاسم" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="s-service" class="p-3 bg-gray-100 rounded-xl outline-none">
+                        <option>ChatGPT</option><option>Netflix</option><option>YouTube</option>
+                    </select>
+                    <input id="s-price" type="number" placeholder="السعر" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
                 </div>
-                <button type="submit" id="save-btn" class="w-full main-gradient text-white py-5 rounded-2xl font-black shadow-xl mt-4">حفظ في السحابة</button>
+                <input id="s-expiry" type="date" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
+                <select id="s-paid" class="w-full p-3 bg-gray-100 rounded-xl outline-none">
+                    <option value="true">واصل</option>
+                    <option value="false">مطلب</option>
+                </select>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold">حفظ</button>
+                    <button type="button" onclick="closeAll()" class="flex-1 bg-gray-100 py-3 rounded-xl font-bold">إلغاء</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- مودال الصرفية -->
-    <div id="modal-exp" class="fixed inset-0 bg-red-950/80 backdrop-blur-md hidden z-[200] flex items-center justify-center p-4">
-        <div class="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl">
-            <div class="bg-red-600 p-6 text-white font-black">تسجيل صرفية جديدة</div>
-            <form onsubmit="handleExpSubmit(event)" class="p-6 space-y-4">
-                <input id="exp-reason" placeholder="ماذا اشتريت؟" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                <input id="exp-amount" type="number" step="0.1" placeholder="المبلغ $" required class="w-full p-4 bg-gray-50 rounded-2xl font-bold outline-none">
-                <button type="submit" class="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">تأكيد الخصم</button>
-                <button type="button" onclick="closeModals()" class="w-full text-gray-400 font-bold">إلغاء</button>
+    <div id="modal-exp" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-[100] p-6 flex items-center justify-center">
+        <div class="bg-white w-full max-w-sm rounded-[25px] p-6">
+            <h3 class="font-black text-lg mb-4">صرفية جديدة</h3>
+            <form onsubmit="saveExp(event)" class="space-y-3">
+                <input id="e-reason" placeholder="السبب" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
+                <input id="e-amount" type="number" placeholder="المبلغ" required class="w-full p-3 bg-gray-100 rounded-xl outline-none">
+                <button type="submit" class="w-full bg-red-500 text-white py-3 rounded-xl font-bold">تأكيد</button>
             </form>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-        // إعدادات فايربيس
+        const logger = document.getElementById('console-logs');
+        function log(msg, color = "#00ff00") {
+            const time = new Date().toLocaleTimeString();
+            logger.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
+            logger.scrollTop = logger.scrollHeight;
+        }
+
         const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-pro-v1';
-        
-        let db, auth, subsCol, expsCol;
-        let subscriptions = [], expenses = [], activeFilter = 'all';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'arin-store-debug';
 
-        // تهيئة النظام
-        async function startup() {
+        let db, auth, subsCol, expsCol;
+        let dataSubs = [], dataExps = [];
+
+        async function init() {
             try {
+                log("جاري الاتصال بـ Firebase...");
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                
-                // تسجيل الدخول المجهول (تم تفعيله الآن!)
-                const userCred = await signInAnonymously(auth);
-                
-                if (userCred.user) {
-                    subsCol = collection(db, 'artifacts', appId, 'public', 'data', 'subs');
-                    expsCol = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
 
-                    // تحديث واجهة الاتصال
-                    document.getElementById('sync-dot').classList.replace('bg-red-500', 'bg-emerald-500');
-                    document.getElementById('sync-dot').style.boxShadow = '0 0 10px #10b981';
-                    document.getElementById('sync-text').innerText = "متصل وسحابي ✅";
-                    document.getElementById('loader').style.display = 'none';
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        log("تم تسجيل الدخول المجهول بنجاح!", "#3b82f6");
+                        document.getElementById('stat-auth').className = "px-2 py-1 bg-emerald-500 text-white rounded";
+                        document.getElementById('stat-auth').innerText = "Auth: OK";
+                        startSync();
+                    } else {
+                        log("جاري محاولة تسجيل الدخول...", "#f59e0b");
+                        signInAnonymously(auth).catch(e => log("خطأ Auth: " + e.message, "#ef4444"));
+                    }
+                });
 
-                    // المزامنة الحية للمشتركين
-                    onSnapshot(subsCol, (snap) => {
-                        subscriptions = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                        render();
-                    });
-
-                    // المزامنة الحية للصرفيات
-                    onSnapshot(expsCol, (snap) => {
-                        expenses = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                        render();
-                    });
-                }
-            } catch (err) {
-                console.error(err);
-                alert("تنبيه: تأكد من تفعيل Anonymous Auth في إعدادات Firebase");
+            } catch (e) {
+                log("خطأ في التهيئة: " + e.message, "#ef4444");
             }
         }
 
-        // التحكم بالواجهات
-        window.changeTab = (t) => {
-            document.getElementById('sec-subs').classList.toggle('hidden', t !== 'subs');
-            document.getElementById('sec-exps').classList.toggle('hidden', t !== 'exps');
-            document.getElementById('fab').classList.toggle('hidden', t !== 'subs');
-        };
+        function startSync() {
+            subsCol = collection(db, 'artifacts', appId, 'public', 'data', 'subs');
+            expsCol = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
 
-        window.setFilter = (f) => {
-            activeFilter = f;
-            document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active-tab'));
-            document.getElementById('f-' + f).classList.add('active-tab');
-            render();
-        };
+            onSnapshot(subsCol, (s) => {
+                dataSubs = s.docs.map(d => ({id: d.id, ...d.data()}));
+                log(`تم جلب ${dataSubs.length} مشتركين`);
+                document.getElementById('stat-db').className = "px-2 py-1 bg-emerald-500 text-white rounded";
+                document.getElementById('stat-db').innerText = "DB: OK";
+                render();
+            }, (e) => log("خطأ في جلب البيانات: " + e.message, "#ef4444"));
 
-        window.openSubModal = (data = null) => {
-            document.getElementById('form-sub').reset();
-            document.getElementById('edit-id').value = data ? data.id : '';
-            document.getElementById('modal-title').innerText = data ? 'تعديل مشترك' : 'إضافة مشترك';
-            if(data) {
-                document.getElementById('in-name').value = data.name;
-                document.getElementById('in-service').value = data.service;
-                document.getElementById('in-price').value = data.price;
-                document.getElementById('in-email').value = data.email;
-                document.getElementById('in-expiry').value = data.expiry;
-                document.getElementById('in-paid').value = data.paid.toString();
-            }
-            document.getElementById('modal-sub').classList.remove('hidden');
-        };
+            onSnapshot(expsCol, (s) => {
+                dataExps = s.docs.map(d => ({id: d.id, ...d.data()}));
+                render();
+            });
+        }
 
-        window.openExpModal = () => document.getElementById('modal-exp').classList.remove('hidden');
-        window.closeModals = () => {
-            document.getElementById('modal-sub').classList.add('hidden');
-            document.getElementById('modal-exp').classList.add('hidden');
-        };
-
-        // التعامل مع البيانات
-        window.handleSubSubmit = async (e) => {
+        window.saveSub = async (e) => {
             e.preventDefault();
-            const btn = document.getElementById('save-btn');
-            btn.disabled = true; btn.innerText = "جاري المزامنة...";
-            
-            const id = document.getElementById('edit-id').value;
-            const data = {
-                name: document.getElementById('in-name').value,
-                service: document.getElementById('in-service').value,
-                price: parseFloat(document.getElementById('in-price').value),
-                email: document.getElementById('in-email').value,
-                expiry: document.getElementById('in-expiry').value,
-                paid: document.getElementById('in-paid').value === 'true',
-                timestamp: Date.now()
-            };
-
+            log("جاري محاولة الحفظ...");
             try {
-                if(id) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id), data);
-                else await addDoc(subsCol, data);
-                closeModals();
-            } catch (err) { alert("حدث خطأ! تأكد من القواعد السحابية."); }
-            finally { btn.disabled = false; btn.innerText = "حفظ في السحابة"; }
+                const payload = {
+                    name: document.getElementById('s-name').value,
+                    service: document.getElementById('s-service').value,
+                    price: parseFloat(document.getElementById('s-price').value),
+                    expiry: document.getElementById('s-expiry').value,
+                    paid: document.getElementById('s-paid').value === 'true',
+                    ts: Date.now()
+                };
+                await addDoc(subsCol, payload);
+                log("تم الحفظ بنجاح!", "#3b82f6");
+                closeAll();
+            } catch (err) {
+                log("فشل الحفظ: " + err.message, "#ef4444");
+                alert("فشل الحفظ! تأكد من القواعد السحابية (Rules)");
+            }
         };
 
-        window.handleExpSubmit = async (e) => {
+        window.saveExp = async (e) => {
             e.preventDefault();
-            const data = {
-                reason: document.getElementById('exp-reason').value,
-                amount: parseFloat(document.getElementById('exp-amount').value),
-                date: Date.now()
-            };
-            await addDoc(expsCol, data);
-            closeModals();
+            try {
+                await addDoc(expsCol, {
+                    reason: document.getElementById('e-reason').value,
+                    amount: parseFloat(document.getElementById('e-amount').value),
+                    ts: Date.now()
+                });
+                closeAll();
+            } catch (e) { log("خطأ صرفية: " + e.message, "#ef4444"); }
         };
 
-        window.deleteSub = async (id) => { if(confirm('حذف هذا المشترك نهائياً؟')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'subs', id)); };
-        window.deleteExp = async (id) => { if(confirm('حذف هذه الصرفية؟')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', id)); };
-
-        // المحرك الرسومي
         window.render = () => {
-            const now = new Date().toISOString().split('T')[0];
-            const search = document.getElementById('search-input').value.toLowerCase();
+            const list = document.getElementById('subs-list');
+            const search = document.getElementById('search').value.toLowerCase();
             
-            // 1. معالجة المشتركين
-            let filtered = subscriptions.filter(s => s.name.toLowerCase().includes(search) || s.service.toLowerCase().includes(search));
-            if(activeFilter === 'unpaid') filtered = filtered.filter(s => !s.paid);
-            if(activeFilter === 'expired') filtered = filtered.filter(s => s.expiry < now);
-
-            document.getElementById('subs-grid').innerHTML = filtered.map(s => `
-                <div class="bg-white p-6 rounded-[2.5rem] card-shadow border border-gray-50 relative group">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 main-gradient text-white rounded-2xl flex items-center justify-center text-xl shadow-lg">
-                                <i class="fas ${getIcon(s.service)}"></i>
-                            </div>
-                            <div>
-                                <h3 class="font-black text-slate-800 text-sm">${s.name}</h3>
-                                <p class="text-[10px] text-indigo-500 font-bold">${s.service}</p>
-                            </div>
-                        </div>
-                        <div class="text-left font-black">
-                            <div class="text-lg">$${s.price}</div>
-                            <span class="text-[9px] px-2 py-0.5 rounded-full ${s.paid ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600 animate-pulse'}">
-                                ${s.paid ? 'واصل' : 'مطلب'}
-                            </span>
-                        </div>
+            const filtered = dataSubs.filter(s => s.name.toLowerCase().includes(search));
+            
+            list.innerHTML = filtered.map(s => `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-slate-800">${s.name}</h4>
+                        <p class="text-[10px] text-blue-500 font-bold uppercase">${s.service} | ${s.expiry}</p>
                     </div>
-                    <div class="bg-gray-50 p-3 rounded-2xl mb-4 text-[11px] font-bold flex justify-between">
-                        <span class="text-gray-400">تاريخ الانتهاء:</span>
-                        <span class="${s.expiry < now ? 'text-red-600' : 'text-slate-700'}">${s.expiry}</span>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick='openSubModal(${JSON.stringify(s)})' class="flex-1 bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black hover:bg-indigo-900 transition-colors">تعديل</button>
-                        <button onclick="deleteSub('${s.id}')" class="w-12 h-11 flex items-center justify-center text-gray-200 hover:text-red-500"><i class="fas fa-trash"></i></button>
+                    <div class="flex items-center gap-3">
+                        <div class="text-left">
+                            <div class="font-black">$${s.price}</div>
+                            <div class="text-[9px] ${s.paid ? 'text-emerald-500' : 'text-red-500'} font-bold">${s.paid ? 'واصل' : 'مطلب'}</div>
+                        </div>
+                        <button onclick="deleteDoc(doc(db, '${subsCol.path}', '${s.id}'))" class="text-gray-300"><i class="fas fa-trash"></i></button>
                     </div>
                 </div>
             `).join('');
 
-            // 2. معالجة الصرفيات
-            document.getElementById('exps-list').innerHTML = expenses.sort((a,b) => b.date - a.date).map(e => `
-                <div class="bg-white p-4 rounded-3xl flex justify-between items-center shadow-sm border-r-4 border-red-500">
-                    <div class="pr-2">
-                        <p class="font-bold text-slate-800 text-sm">${e.reason}</p>
-                        <p class="text-[10px] text-gray-400">${new Date(e.date).toLocaleDateString()}</p>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <span class="font-black text-red-600">$${e.amount}</span>
-                        <button onclick="deleteExp('${e.id}')" class="text-gray-200 hover:text-red-600 transition-colors"><i class="fas fa-circle-xmark text-xl"></i></button>
-                    </div>
+            // تحديث الحسابات
+            const totalSales = dataSubs.filter(s => s.paid).reduce((a,b) => a + b.price, 0);
+            const totalExp = dataExps.reduce((a,b) => a + b.amount, 0);
+            document.getElementById('total-profit').innerText = '$' + (totalSales - totalExp).toFixed(1);
+            document.getElementById('total-exps').innerText = '$' + totalExp.toFixed(1);
+
+            // سجل الصرفيات
+            document.getElementById('exps-list').innerHTML = dataExps.map(e => `
+                <div class="bg-white p-3 rounded-xl border-r-4 border-red-500 flex justify-between">
+                    <span class="text-xs font-bold">${e.reason}</span>
+                    <span class="text-xs font-black text-red-600">$${e.amount}</span>
                 </div>
             `).join('');
-
-            // 3. تحديث الإحصائيات
-            const revenue = subscriptions.filter(s => s.paid).reduce((a, b) => a + b.price, 0);
-            const totalExps = expenses.reduce((a, b) => a + b.amount, 0);
-            const debts = subscriptions.filter(s => !s.paid).reduce((a, b) => a + b.price, 0);
-
-            document.getElementById('dash-net').innerText = '$' + (revenue - totalExps).toFixed(1);
-            document.getElementById('dash-exps').innerText = '$' + totalExps.toFixed(1);
-            document.getElementById('dash-debt').innerText = '$' + debts.toFixed(1);
-            document.getElementById('dash-count').innerText = subscriptions.length;
         };
 
-        function getIcon(s) {
-            const icons = { 'ChatGPT': 'fa-robot', 'Netflix': 'fa-tv', 'YouTube': 'fa-play', 'Canva': 'fa-pen-nib', 'Discord': 'fa-ghost', 'Spotify': 'fa-music' };
-            return icons[s] || 'fa-gem';
-        }
+        window.switchTab = (t) => {
+            document.getElementById('view-subs').classList.toggle('hidden', t !== 'subs');
+            document.getElementById('view-exps').classList.toggle('hidden', t !== 'exps');
+        };
 
-        startup();
+        window.openModal = (m) => document.getElementById('modal-' + m).classList.remove('hidden');
+        window.closeAll = () => {
+            document.querySelectorAll('[id^="modal-"]').forEach(m => m.classList.add('hidden'));
+        };
+
+        init();
     </script>
 </body>
 </html>
