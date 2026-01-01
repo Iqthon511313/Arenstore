@@ -3,51 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>أرين ستور - إدارة الاشتراكات</title>
-    <!-- Tailwind CSS -->
+    <title>أرين ستور - الإدارة الملكية</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;800&display=swap');
-        :root { --bg-dark: #05070A; --card-dark: #0A0F19; --accent-blue: #3B82F6; }
-        body { font-family: 'Noto Sans Arabic', sans-serif; background-color: var(--bg-dark); -webkit-tap-highlight-color: transparent; color: #e2e8f0; }
-        .active-scale:active { transform: scale(0.95); }
-        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;800;900&display=swap');
+        :root { --gold: #D4AF37; --bg-deep: #050608; }
+        body { font-family: 'Noto Sans Arabic', sans-serif; background-color: var(--bg-deep); color: #f8fafc; overflow-x: hidden; }
+        .glass-nav { background: rgba(10, 15, 25, 0.95); backdrop-filter: blur(15px); }
+        .active-scale:active { transform: scale(0.96); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // استيراد مكتبات Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-        // بيانات مشروعك التي أرسلتها
         const firebaseConfig = {
             apiKey: "AIzaSyAKok61chnRv9_-QQeQ-TP9WkZwc8cqqac",
             authDomain: "arenstore-d61ce.firebaseapp.com",
             projectId: "arenstore-d61ce",
             storageBucket: "arenstore-d61ce.firebasestorage.app",
             messagingSenderId: "5224012268",
-            appId: "1:5224012268:web:11d11411b57247a87f08c9",
-            measurementId: "G-TEW8WWXFFG"
+            appId: "1:5224012268:web:11d11411b57247a87f08c9"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        // نستخدم معرف ثابت للمجموعة لضمان ظهور البيانات للجميع
-        const collectionName = "aren_subscriptions";
+        const APP_ID = "aren_store_v3_stable";
 
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
@@ -57,206 +50,256 @@
         const App = () => {
             const [user, setUser] = useState(null);
             const [subscriptions, setSubscriptions] = useState([]);
-            const [activeTab, setActiveTab] = useState('subs');
-            const [isSubModalOpen, setIsSubModalOpen] = useState(false);
-            const [editingItem, setEditingItem] = useState(null);
+            const [expenses, setExpenses] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('subs');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+            const [editingItem, setEditingItem] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterUrgent, setFilterUrgent] = useState(false);
 
-            const [subForm, setSubForm] = useState({
-                customerName: '', email: '', contactInfo: '', serviceName: 'ChatGPT Plus',
-                plan: 'monthly', customDays: '', price: ''
+            const [form, setForm] = useState({
+                name: '', email: '', contact: '', socialLink: '', 
+                service: 'ChatGPT Plus', price: '', plan: 'monthly', customDays: ''
             });
+            const [expForm, setExpForm] = useState({ title: '', amount: '' });
 
             useEffect(() => {
-                // تفعيل الدخول المجهول (تأكد من تفعيله في Firebase Console كما شرحت لك)
-                signInAnonymously(auth).catch(err => console.error("Auth Error:", err));
-                const unsubscribe = onAuthStateChanged(auth, (u) => {
+                const init = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (e) { console.error("Auth Error", e); }
+                };
+                init();
+
+                const unsubAuth = onAuthStateChanged(auth, (u) => {
                     setUser(u);
-                    if (u) setLoading(false);
+                    if (u) {
+                        const unsubSubs = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'subs'), (s) => {
+                            setSubscriptions(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                            setLoading(false);
+                        });
+                        const unsubExp = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'expenses'), (s) => {
+                            setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                        });
+                        return () => { unsubSubs(); unsubExp(); };
+                    }
                 });
-                return () => unsubscribe();
+                return () => unsubAuth();
             }, []);
 
-            useEffect(() => {
-                if (!user) return;
-                // جلب البيانات من السحابة مباشرة
-                const subsRef = collection(db, collectionName);
-                const unsub = onSnapshot(subsRef, (snap) => {
-                    setSubscriptions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                }, (err) => {
-                    console.error("Firestore Error:", err);
-                    if(err.code === 'permission-denied') {
-                        alert("خطأ: يرجى تفعيل Firestore وتعيين القواعد (Rules) إلى Test Mode في Firebase Console.");
-                    }
+            const daysLeft = (date) => Math.ceil((new Date(date) - new Date()) / (1000 * 60 * 60 * 24));
+
+            const stats = useMemo(() => {
+                const totalRev = subscriptions.reduce((a, b) => a + (Number(b.price) || 0), 0);
+                const totalExp = expenses.reduce((a, b) => a + (Number(b.amount) || 0), 0);
+                return { rev: totalRev, exp: totalExp, net: totalRev - totalExp };
+            }, [subscriptions, expenses]);
+
+            const filteredList = useMemo(() => {
+                return subscriptions.filter(s => {
+                    const matchesSearch = (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                         (s.service || '').toLowerCase().includes(searchTerm.toLowerCase());
+                    const isUrgent = daysLeft(s.expiryDate) <= 5;
+                    return filterUrgent ? (matchesSearch && isUrgent) : matchesSearch;
                 });
-                return () => unsub();
-            }, [user]);
+            }, [subscriptions, searchTerm, filterUrgent]);
 
-            const getDaysRemaining = (expiryDate) => {
-                const diff = new Date(expiryDate) - new Date();
-                return Math.ceil(diff / (1000 * 60 * 60 * 24));
-            };
-
-            const saveSubscription = async (e) => {
+            const saveSub = async (e) => {
                 e.preventDefault();
-                if (!user) return;
-                
-                let expiryDate = new Date();
-                if(subForm.plan === 'monthly') expiryDate.setMonth(expiryDate.getMonth() + 1);
-                else if(subForm.plan === 'yearly') expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-                else if(subForm.plan === 'custom' && subForm.customDays) expiryDate.setDate(expiryDate.getDate() + parseInt(subForm.customDays));
-                
-                const data = { 
-                    ...subForm, 
-                    expiryDate: expiryDate.toISOString().split('T')[0], 
-                    price: Number(subForm.price), 
-                    updatedAt: Date.now() 
-                };
+                let expiry = new Date();
+                if(form.plan === 'monthly') expiry.setMonth(expiry.getMonth() + 1);
+                else if(form.plan === 'yearly') expiry.setFullYear(expiry.getFullYear() + 1);
+                else expiry.setDate(expiry.getDate() + (parseInt(form.customDays) || 0));
+
+                const data = { ...form, expiryDate: expiry.toISOString().split('T')[0], createdAt: Date.now() };
+                const colRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'subs');
                 
                 try {
-                    if (editingItem) {
-                        await updateDoc(doc(db, collectionName, editingItem.id), data);
-                    } else {
-                        await addDoc(collection(db, collectionName), data);
-                    }
-                    setIsSubModalOpen(false);
-                    setEditingItem(null);
-                    setSubForm({ customerName: '', email: '', contactInfo: '', serviceName: 'ChatGPT Plus', plan: 'monthly', customDays: '', price: '' });
-                } catch (err) { 
-                    alert("حدث خطأ أثناء الحفظ بالسحابة"); 
-                }
+                    if (editingItem) await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'subs', editingItem.id), data);
+                    else await addDoc(colRef, data);
+                    setIsModalOpen(false); setEditingItem(null);
+                    setForm({ name: '', email: '', contact: '', socialLink: '', service: 'ChatGPT Plus', price: '', plan: 'monthly', customDays: '' });
+                } catch (e) { alert("حدث خطأ في الحفظ"); }
+            };
+
+            const addExpense = async (e) => {
+                e.preventDefault();
+                try {
+                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'expenses'), { ...expForm, date: new Date().toISOString() });
+                    setIsExpenseModalOpen(false); setExpForm({ title: '', amount: '' });
+                } catch (e) { alert("فشل إضافة المصروف"); }
             };
 
             if (loading) return (
-                <div className="min-h-screen flex items-center justify-center bg-[#05070A]">
-                    <div className="text-center space-y-4">
-                        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                        <p className="text-blue-500 font-bold animate-pulse">جاري الاتصال بـ Aren Store...</p>
+                <div className="min-h-screen flex items-center justify-center bg-black">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-10 h-10 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
+                        <h2 className="text-[#D4AF37] text-xs font-black tracking-widest uppercase">Aren Store</h2>
                     </div>
                 </div>
             );
 
             return (
-                <div className="min-h-screen bg-[#05070A] pb-24">
-                    {/* Header */}
-                    <header className="p-5 flex justify-between items-center sticky top-0 bg-[#05070A]/80 backdrop-blur-md z-40 border-b border-white/5">
+                <div className="min-h-screen">
+                    <header className="p-6 flex justify-between items-center sticky top-0 glass-nav z-40 border-b border-white/5">
                         <div>
-                            <h1 className="text-xl font-extrabold text-white tracking-tight">AREN STORE</h1>
-                            <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> سحابي نشط
-                            </p>
+                            <h1 className="text-xl font-black text-white italic">AREN <span className="text-[#D4AF37]">STORE</span></h1>
+                            <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Royal Stable V3</p>
                         </div>
-                        <button onClick={() => setIsSubModalOpen(true)} className="w-11 h-11 bg-blue-600 rounded-2xl flex items-center justify-center text-white active-scale shadow-lg shadow-blue-600/30">
-                            <Icon name="plus" size={24} />
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsExpenseModalOpen(true)} className="p-2 bg-rose-500/10 text-rose-500 rounded-lg active-scale"><Icon name="minus" size={18}/></button>
+                            <button onClick={() => { setEditingItem(null); setIsModalOpen(true); }} className="bg-[#D4AF37] text-black px-4 py-2 rounded-xl font-black active-scale shadow-lg shadow-[#D4AF37]/20 flex items-center gap-2 text-xs">
+                                <Icon name="plus" size={16} /> إضافة زبون
+                            </button>
+                        </div>
                     </header>
 
-                    <main className="p-4 space-y-4">
+                    <main className="p-5 max-w-4xl mx-auto pb-32">
                         {activeTab === 'dashboard' ? (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-                                    <div className="relative z-10">
-                                        <p className="opacity-80 text-xs font-bold mb-1">إجمالي المبيعات</p>
-                                        <h2 className="text-4xl font-black">${subscriptions.reduce((a,b)=>a+(Number(b.price)||0),0)}</h2>
+                            <div className="space-y-6">
+                                <div className="bg-[#0D1117] p-8 rounded-[2.5rem] border border-[#D4AF37]/20 shadow-2xl">
+                                    <p className="text-[#D4AF37] text-[10px] font-black mb-1 uppercase tracking-widest">صافي الأرباح</p>
+                                    <h2 className="text-4xl font-black text-white tracking-tighter">${stats.net}</h2>
+                                    <div className="mt-6 flex gap-4">
+                                        <div className="flex-1 bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
+                                            <p className="text-[8px] text-emerald-500 font-black uppercase">المبيعات</p>
+                                            <p className="text-lg font-black text-emerald-400">${stats.rev}</p>
+                                        </div>
+                                        <div className="flex-1 bg-rose-500/5 p-3 rounded-xl border border-rose-500/10">
+                                            <p className="text-[8px] text-rose-500 font-black uppercase">المصروفات</p>
+                                            <p className="text-lg font-black text-rose-400">${stats.exp}</p>
+                                        </div>
                                     </div>
-                                    <Icon name="zap" size={100} className="absolute -bottom-4 -left-4 opacity-10 rotate-12" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-[#0A0F19] p-6 rounded-[2rem] border border-white/5 shadow-xl">
-                                        <p className="text-slate-500 text-[10px] font-black uppercase mb-1">الزبائن</p>
-                                        <p className="text-3xl font-black text-white">{subscriptions.length}</p>
-                                    </div>
-                                    <div className="bg-[#0A0F19] p-6 rounded-[2rem] border border-white/5 shadow-xl">
-                                        <p className="text-slate-500 text-[10px] font-black uppercase mb-1">قرب الانتهاء</p>
-                                        <p className="text-3xl font-black text-amber-500">{subscriptions.filter(s => getDaysRemaining(s.expiryDate) <= 7).length}</p>
+
+                                <div className="space-y-3">
+                                    <h3 className="text-xs font-black text-slate-500">سجل المصروفات</h3>
+                                    <div className="space-y-2">
+                                        {expenses.length === 0 ? <p className="text-center text-slate-700 text-xs py-4">لا يوجد بيانات</p> : 
+                                            expenses.map(ex => (
+                                                <div key={ex.id} className="bg-white/5 p-4 rounded-2xl flex justify-between border border-white/5">
+                                                    <div><p className="font-bold text-sm">{ex.title}</p><p className="text-[9px] text-slate-500">{ex.date?.split('T')[0]}</p></div>
+                                                    <div className="text-rose-400 font-black">-${ex.amount}</div>
+                                                </div>
+                                            ))
+                                        }
                                     </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                                {subscriptions.length === 0 ? (
-                                    <div className="text-center py-20 opacity-40">
-                                        <Icon name="users" size={48} className="mx-auto mb-4" />
-                                        <p className="font-bold italic">قاعدة البيانات فارغة حالياً</p>
-                                    </div>
-                                ) : (
-                                    subscriptions.map(s => {
-                                        const days = getDaysRemaining(s.expiryDate);
+                            <div className="space-y-4">
+                                <div className="space-y-3">
+                                    <input 
+                                        type="text" 
+                                        placeholder="بحث عن زبون..." 
+                                        className="w-full bg-[#0D1117] border border-white/10 p-4 rounded-xl outline-none focus:border-[#D4AF37] text-sm font-bold"
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                    />
+                                    <button 
+                                        onClick={() => setFilterUrgent(!filterUrgent)}
+                                        className={`w-full p-3 rounded-xl font-black text-[10px] transition-all border ${filterUrgent ? 'bg-rose-500 border-rose-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-slate-500'}`}
+                                    >
+                                        {filterUrgent ? 'عرض كل الاشتراكات' : 'عرض اشتراكات الـ 5 أيام الأخيرة فقط'}
+                                    </button>
+                                </div>
+
+                                <div className="grid gap-4">
+                                    {filteredList.map(s => {
+                                        const left = daysLeft(s.expiryDate);
                                         return (
-                                            <div key={s.id} className="bg-[#0A0F19] p-5 rounded-[2.2rem] border border-white/5 shadow-xl space-y-4">
-                                                <div className="flex justify-between items-start">
+                                            <div key={s.id} className="bg-[#0D1117] p-5 rounded-[1.8rem] border border-white/5 relative">
+                                                <div className={`absolute top-4 left-4 w-2 h-2 rounded-full ${left <= 5 ? 'bg-rose-500 animate-ping' : 'bg-[#D4AF37]'}`}></div>
+                                                <div className="flex justify-between items-start mb-4">
                                                     <div>
-                                                        <h3 className="font-black text-white text-lg leading-none mb-1">{s.customerName}</h3>
-                                                        <p className="text-[11px] text-blue-500 font-bold">{s.serviceName} • ${s.price}</p>
+                                                        <h3 className="font-black text-white text-base">{s.name}</h3>
+                                                        <p className="text-xs text-[#D4AF37] font-bold">{s.service} • ${s.price}</p>
                                                     </div>
-                                                    <span className={`text-[10px] font-black px-3 py-1 rounded-full ${days < 3 ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                                                        {days} يوم متبقي
+                                                    <span className={`text-[9px] font-black px-2 py-1 rounded-md ${left <= 5 ? 'bg-rose-500/10 text-rose-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                        {left <= 0 ? 'منتهي' : `${left} يوم متبقي`}
                                                     </span>
                                                 </div>
-                                                <div className="text-[11px] text-slate-500 space-y-0.5">
-                                                    <p className="flex items-center gap-1"><Icon name="mail" size={10}/> {s.email || 'لا يوجد إيميل'}</p>
-                                                    <p className="flex items-center gap-1 text-slate-400 font-bold"><Icon name="link" size={10}/> {s.contactInfo}</p>
+                                                <div className="grid grid-cols-1 gap-1 text-[10px] text-slate-400 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
+                                                    {s.email && <p className="flex items-center gap-2"><Icon name="mail" size={12}/> {s.email}</p>}
+                                                    {s.contact && <p className="flex items-center gap-2 text-blue-400"><Icon name="message-circle" size={12}/> {s.contact}</p>}
+                                                    {s.socialLink && <p className="flex items-center gap-2 text-indigo-400"><Icon name="instagram" size={12}/> {s.socialLink}</p>}
+                                                    <p className="flex items-center gap-2 opacity-50"><Icon name="clock" size={12}/> تنتهي: {s.expiryDate}</p>
                                                 </div>
-                                                <div className="flex items-center justify-between pt-3 border-t border-white/5 gap-2">
-                                                    <button onClick={() => { setEditingItem(s); setSubForm(s); setIsSubModalOpen(true); }} className="flex-1 py-3 bg-white/5 rounded-xl text-slate-400 active-scale text-xs font-bold flex items-center justify-center gap-2">
-                                                        <Icon name="edit-2" size={14}/> تعديل
-                                                    </button>
+                                                <div className="flex gap-2">
                                                     <button onClick={() => {
-                                                        const msg = `أهلاً ${s.customerName}، تذكير من أرين ستور: اشتراكك في ${s.serviceName} ينتهي بتاريخ ${s.expiryDate}.`;
-                                                        window.open(`https://wa.me/${s.contactInfo.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`);
-                                                    }} className="flex-1 py-3 bg-blue-600/10 rounded-xl text-blue-500 active-scale text-xs font-bold flex items-center justify-center gap-2">
-                                                        <Icon name="send" size={14}/> تذكير
+                                                        const clean = s.contact?.replace('@','') || '';
+                                                        const msg = `أهلاً بك في أرين ستور، تذكير لتجديد ${s.service}. ينتهي في ${s.expiryDate}`;
+                                                        if(/^\d+$/.test(clean)) window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`);
+                                                        else if(clean) window.open(`https://t.me/${clean}`);
+                                                        else alert("وسيلة التواصل غير متوفرة");
+                                                    }} className="flex-1 bg-[#D4AF37]/10 text-[#D4AF37] py-2.5 rounded-lg font-black text-[10px] active-scale flex items-center justify-center gap-2">
+                                                        <Icon name="bell" size={12}/> تذكير
                                                     </button>
-                                                    <button onClick={() => { if(confirm('هل أنت متأكد؟')) deleteDoc(doc(db, collectionName, s.id)) }} className="p-3 bg-rose-500/10 rounded-xl text-rose-500 active-scale">
-                                                        <Icon name="trash-2" size={14}/>
-                                                    </button>
+                                                    <button onClick={() => { setForm(s); setEditingItem(s); setIsModalOpen(true); }} className="p-2.5 bg-white/5 rounded-lg text-slate-400 active-scale"><Icon name="edit-2" size={14}/></button>
+                                                    <button onClick={() => { if(confirm('حذف؟')) deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'subs', s.id)) }} className="p-2.5 bg-rose-500/10 rounded-lg text-rose-500 active-scale"><Icon name="trash-2" size={14}/></button>
                                                 </div>
                                             </div>
                                         )
-                                    })
-                                )}
+                                    })}
+                                </div>
                             </div>
                         )}
                     </main>
 
-                    {/* Bottom Nav */}
-                    <nav className="fixed bottom-0 left-0 right-0 bg-[#0A0F19]/90 backdrop-blur-2xl border-t border-white/5 flex justify-around p-4 safe-area-bottom z-50">
-                        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-blue-500 scale-110' : 'text-slate-600'}`}>
-                            <Icon name="layout-grid" size={24} />
-                            <span className="text-[10px] font-black">الرئيسية</span>
+                    <nav className="fixed bottom-0 left-0 right-0 glass-nav border-t border-white/5 flex justify-around p-4 safe-bottom z-50">
+                        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-[#D4AF37]' : 'text-slate-600'}`}>
+                            <Icon name="layout-grid" size={22} />
+                            <span className="text-[9px] font-black uppercase">الرئيسية</span>
                         </button>
-                        <button onClick={() => setActiveTab('subs')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'subs' ? 'text-blue-500 scale-110' : 'text-slate-600'}`}>
-                            <Icon name="users" size={24} />
-                            <span className="text-[10px] font-black">المشتركين</span>
+                        <button onClick={() => setActiveTab('subs')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'subs' ? 'text-[#D4AF37]' : 'text-slate-600'}`}>
+                            <Icon name="users" size={22} />
+                            <span className="text-[9px] font-black uppercase">الزبائن</span>
                         </button>
                     </nav>
 
-                    {/* Modal */}
-                    {isSubModalOpen && (
-                        <div className="fixed inset-0 bg-black/95 z-[100] p-4 flex flex-col justify-end lg:justify-center lg:items-center">
-                            <div className="bg-[#0A0F19] w-full max-w-lg rounded-t-[3rem] lg:rounded-[3rem] p-8 pb-12 space-y-6 animate-in slide-in-from-bottom-full duration-300 shadow-3xl">
-                                <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-2 lg:hidden" onClick={() => setIsSubModalOpen(false)}></div>
-                                <h2 className="text-2xl font-black text-white text-center tracking-tight">{editingItem ? 'تعديل البيانات' : 'إضافة مشترك جديد'}</h2>
-                                <form onSubmit={saveSubscription} className="space-y-4">
-                                    <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 custom-scrollbar">
-                                        <input className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none focus:border-blue-600 transition-all font-bold" placeholder="اسم المشترك الكامل" value={subForm.customerName} onChange={e=>setSubForm({...subForm, customerName:e.target.value})} required />
-                                        <input className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none" placeholder="البريد الإلكتروني (اختياري)" type="email" value={subForm.email} onChange={e=>setSubForm({...subForm, email:e.target.value})} />
-                                        <input className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none font-bold" placeholder="رابط الحساب أو رقم الهاتف" value={subForm.contactInfo} onChange={e=>setSubForm({...subForm, contactInfo:e.target.value})} required />
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <input className="bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none font-bold" placeholder="السعر $" type="number" value={subForm.price} onChange={e=>setSubForm({...subForm, price:e.target.value})} required />
-                                            <select className="bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none font-bold appearance-none" value={subForm.plan} onChange={e=>setSubForm({...subForm, plan:e.target.value})}>
-                                                <option value="monthly">باقة شهرية</option>
-                                                <option value="yearly">باقة سنوية</option>
-                                                <option value="custom">أيام مخصصة</option>
-                                            </select>
-                                        </div>
-                                        {subForm.plan === 'custom' && (
-                                            <input className="w-full bg-blue-600/10 border border-blue-600/30 p-4 rounded-2xl text-blue-400 outline-none font-bold" placeholder="أدخل عدد الأيام..." type="number" value={subForm.customDays} onChange={e=>setSubForm({...subForm, customDays:e.target.value})} required />
-                                        )}
-                                        <input className="w-full bg-white/5 border border-white/10 p-4 rounded-2xl text-white outline-none font-bold" placeholder="نوع الخدمة (مثلاً: نتفلكس)" value={subForm.serviceName} onChange={e=>setSubForm({...subForm, serviceName:e.target.value})} required />
+                    {/* Modal Sub */}
+                    {isModalOpen && (
+                        <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col justify-end">
+                            <div className="bg-[#0D1117] rounded-t-[2.5rem] p-6 space-y-4 animate-in slide-in-from-bottom-full border-t border-[#D4AF37]/20">
+                                <h2 className="text-lg font-black text-center text-white italic">AREN <span className="text-[#D4AF37]">FORM</span></h2>
+                                <form onSubmit={saveSub} className="space-y-3 max-h-[70vh] overflow-y-auto px-1 pb-10">
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-bold text-sm" placeholder="اسم الزبون" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-bold text-sm" placeholder="إيميل الزبون (اختياري)" type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="تليجرام/رقم (اختياري)" value={form.contact} onChange={e=>setForm({...form, contact:e.target.value})} />
+                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="رابط حساب (اختياري)" value={form.socialLink} onChange={e=>setForm({...form, socialLink:e.target.value})} />
                                     </div>
-                                    <button className="w-full bg-blue-600 text-white py-5 rounded-[1.8rem] font-black shadow-xl shadow-blue-600/30 active-scale transition-all text-lg tracking-tight">إتمام الحفظ السحابي</button>
-                                    <button type="button" onClick={() => setIsSubModalOpen(false)} className="w-full text-slate-500 font-bold py-2">تجاهل</button>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl text-emerald-400 font-black text-sm" placeholder="السعر $" type="number" value={form.price} onChange={e=>setForm({...form, price:e.target.value})} required />
+                                        <select className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" value={form.plan} onChange={e=>setForm({...form, plan:e.target.value})}>
+                                            <option value="monthly">شهر</option>
+                                            <option value="yearly">سنة</option>
+                                            <option value="custom">أيام مخصصة</option>
+                                        </select>
+                                    </div>
+                                    {form.plan === 'custom' && (
+                                        <input className="w-full bg-[#D4AF37]/5 border border-[#D4AF37]/20 p-4 rounded-xl text-[#D4AF37] font-black text-sm" type="number" placeholder="أدخل عدد الأيام" value={form.customDays} onChange={e=>setForm({...form, customDays:e.target.value})} required />
+                                    )}
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-bold text-sm" placeholder="نوع الخدمة" value={form.service} onChange={e=>setForm({...form, service:e.target.value})} required />
+                                    <button className="w-full bg-[#D4AF37] text-black py-4 rounded-xl font-black text-base active-scale">حفظ البيانات</button>
+                                    <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-slate-600 font-bold text-xs py-2">إلغاء</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Modal Expense */}
+                    {isExpenseModalOpen && (
+                        <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col justify-center p-6">
+                            <div className="bg-[#0D1117] rounded-[2rem] p-6 border border-rose-500/20 space-y-4">
+                                <h2 className="text-base font-black text-rose-500 text-center uppercase">إضافة مصروف</h2>
+                                <form onSubmit={addExpense} className="space-y-3">
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="البيان (مثلاً: سيرفر)" value={expForm.title} onChange={e=>setExpForm({...expForm, title:e.target.value})} required />
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-black" placeholder="المبلغ $" type="number" value={expForm.amount} onChange={e=>setExpForm({...expForm, amount:e.target.value})} required />
+                                    <button className="w-full bg-rose-500 text-white py-4 rounded-xl font-black active-scale">تأكيد الخصم</button>
+                                    <button type="button" onClick={() => setIsExpenseModalOpen(false)} className="w-full text-slate-500 font-bold text-xs">رجوع</button>
                                 </form>
                             </div>
                         </div>
