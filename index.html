@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>أرين ستور - الإدارة الملكية</title>
+    <title>أرين ستور - النظام المستقر</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -11,8 +11,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;800;900&display=swap');
-        :root { --gold: #D4AF37; --bg-deep: #050608; }
-        body { font-family: 'Noto Sans Arabic', sans-serif; background-color: var(--bg-deep); color: #f8fafc; overflow-x: hidden; }
+        body { font-family: 'Noto Sans Arabic', sans-serif; background-color: #050608; color: #f8fafc; }
         .glass-nav { background: rgba(10, 15, 25, 0.95); backdrop-filter: blur(15px); }
         .active-scale:active { transform: scale(0.96); }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -26,7 +25,7 @@
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAKok61chnRv9_-QQeQ-TP9WkZwc8cqqac",
@@ -40,7 +39,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const APP_ID = "aren_store_v3_stable";
+        const APP_ID = "aren_store_v5_fix";
 
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
@@ -48,7 +47,6 @@
         };
 
         const App = () => {
-            const [user, setUser] = useState(null);
             const [subscriptions, setSubscriptions] = useState([]);
             const [expenses, setExpenses] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -66,179 +64,147 @@
             const [expForm, setExpForm] = useState({ title: '', amount: '' });
 
             useEffect(() => {
-                const init = async () => {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (e) { console.error("Auth Error", e); }
-                };
-                init();
+                signInAnonymously(auth).then(() => {
+                    const unsubSubs = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'subs'), (s) => {
+                        setSubscriptions(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                        setLoading(false);
+                    }, () => setLoading(false));
 
-                const unsubAuth = onAuthStateChanged(auth, (u) => {
-                    setUser(u);
-                    if (u) {
-                        const unsubSubs = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'subs'), (s) => {
-                            setSubscriptions(s.docs.map(d => ({ id: d.id, ...d.data() })));
-                            setLoading(false);
-                        });
-                        const unsubExp = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'expenses'), (s) => {
-                            setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })));
-                        });
-                        return () => { unsubSubs(); unsubExp(); };
-                    }
+                    const unsubExp = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'expenses'), (s) => {
+                        setExpenses(s.docs.map(d => ({ id: d.id, ...d.data() })));
+                    });
+
+                    return () => { unsubSubs(); unsubExp(); };
                 });
-                return () => unsubAuth();
             }, []);
 
-            const daysLeft = (date) => Math.ceil((new Date(date) - new Date()) / (1000 * 60 * 60 * 24));
+            const daysLeft = (date) => {
+                if (!date) return 0;
+                const diff = new Date(date) - new Date();
+                return Math.ceil(diff / (1000 * 60 * 60 * 24));
+            };
 
+            // حساب الإحصائيات بأمان تام لمنع الشاشة السوداء
             const stats = useMemo(() => {
-                const totalRev = subscriptions.reduce((a, b) => a + (Number(b.price) || 0), 0);
-                const totalExp = expenses.reduce((a, b) => a + (Number(b.amount) || 0), 0);
-                return { rev: totalRev, exp: totalExp, net: totalRev - totalExp };
+                try {
+                    const activeList = (subscriptions || []).filter(s => daysLeft(s.expiryDate) > 0);
+                    const totalRev = (subscriptions || []).reduce((a, b) => a + (Number(b.price) || 0), 0);
+                    const totalExp = (expenses || []).reduce((a, b) => a + (Number(b.amount) || 0), 0);
+                    
+                    return {
+                        net: totalRev - totalExp,
+                        active: activeList.length,
+                        monthly: activeList.filter(s => s.plan === 'monthly').length,
+                        threeMonths: activeList.filter(s => s.plan === '3months').length,
+                        yearly: activeList.filter(s => s.plan === 'yearly').length,
+                        totalRev,
+                        totalExp
+                    };
+                } catch (e) {
+                    return { net:0, active:0, monthly:0, threeMonths:0, yearly:0, totalRev:0, totalExp:0 };
+                }
             }, [subscriptions, expenses]);
 
             const filteredList = useMemo(() => {
-                return subscriptions.filter(s => {
-                    const matchesSearch = (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                         (s.service || '').toLowerCase().includes(searchTerm.toLowerCase());
-                    const isUrgent = daysLeft(s.expiryDate) <= 5;
-                    return filterUrgent ? (matchesSearch && isUrgent) : matchesSearch;
+                const search = searchTerm.toLowerCase();
+                return (subscriptions || []).filter(s => {
+                    const matches = 
+                        (s.name || '').toLowerCase().includes(search) || 
+                        (s.email || '').toLowerCase().includes(search) || 
+                        (s.contact || '').toLowerCase().includes(search) || 
+                        (s.service || '').toLowerCase().includes(search);
+                    
+                    if (filterUrgent) return matches && daysLeft(s.expiryDate) <= 5;
+                    return matches;
                 });
             }, [subscriptions, searchTerm, filterUrgent]);
 
-            const saveSub = async (e) => {
+            const handleSave = async (e) => {
                 e.preventDefault();
                 let expiry = new Date();
                 if(form.plan === 'monthly') expiry.setMonth(expiry.getMonth() + 1);
+                else if(form.plan === '3months') expiry.setMonth(expiry.getMonth() + 3);
                 else if(form.plan === 'yearly') expiry.setFullYear(expiry.getFullYear() + 1);
                 else expiry.setDate(expiry.getDate() + (parseInt(form.customDays) || 0));
 
-                const data = { ...form, expiryDate: expiry.toISOString().split('T')[0], createdAt: Date.now() };
-                const colRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'subs');
-                
+                const data = { ...form, expiryDate: expiry.toISOString().split('T')[0] };
                 try {
                     if (editingItem) await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'subs', editingItem.id), data);
-                    else await addDoc(colRef, data);
-                    setIsModalOpen(false); setEditingItem(null);
-                    setForm({ name: '', email: '', contact: '', socialLink: '', service: 'ChatGPT Plus', price: '', plan: 'monthly', customDays: '' });
-                } catch (e) { alert("حدث خطأ في الحفظ"); }
+                    else await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'subs'), { ...data, createdAt: Date.now() });
+                    setIsModalOpen(false);
+                } catch (err) { console.error(err); }
             };
 
-            const addExpense = async (e) => {
-                e.preventDefault();
-                try {
-                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'expenses'), { ...expForm, date: new Date().toISOString() });
-                    setIsExpenseModalOpen(false); setExpForm({ title: '', amount: '' });
-                } catch (e) { alert("فشل إضافة المصروف"); }
-            };
-
-            if (loading) return (
-                <div className="min-h-screen flex items-center justify-center bg-black">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-10 h-10 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
-                        <h2 className="text-[#D4AF37] text-xs font-black tracking-widest uppercase">Aren Store</h2>
-                    </div>
-                </div>
-            );
+            if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-[#D4AF37] font-black uppercase tracking-widest">Loading...</div>;
 
             return (
-                <div className="min-h-screen">
-                    <header className="p-6 flex justify-between items-center sticky top-0 glass-nav z-40 border-b border-white/5">
-                        <div>
-                            <h1 className="text-xl font-black text-white italic">AREN <span className="text-[#D4AF37]">STORE</span></h1>
-                            <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Royal Stable V3</p>
-                        </div>
+                <div className="min-h-screen pb-24">
+                    <header className="p-4 flex justify-between items-center sticky top-0 glass-nav z-40 border-b border-white/5">
+                        <h1 className="text-xl font-black italic">AREN <span className="text-[#D4AF37]">STORE</span></h1>
                         <div className="flex gap-2">
-                            <button onClick={() => setIsExpenseModalOpen(true)} className="p-2 bg-rose-500/10 text-rose-500 rounded-lg active-scale"><Icon name="minus" size={18}/></button>
-                            <button onClick={() => { setEditingItem(null); setIsModalOpen(true); }} className="bg-[#D4AF37] text-black px-4 py-2 rounded-xl font-black active-scale shadow-lg shadow-[#D4AF37]/20 flex items-center gap-2 text-xs">
-                                <Icon name="plus" size={16} /> إضافة زبون
-                            </button>
+                            <button onClick={() => setIsExpenseModalOpen(true)} className="p-2 bg-rose-500/10 text-rose-500 rounded-lg"><Icon name="minus" /></button>
+                            <button onClick={() => { setEditingItem(null); setIsModalOpen(true); }} className="bg-[#D4AF37] text-black px-4 py-2 rounded-lg font-black text-xs">إضافة مشترك</button>
                         </div>
                     </header>
 
-                    <main className="p-5 max-w-4xl mx-auto pb-32">
+                    <main className="p-4 max-w-2xl mx-auto">
                         {activeTab === 'dashboard' ? (
-                            <div className="space-y-6">
-                                <div className="bg-[#0D1117] p-8 rounded-[2.5rem] border border-[#D4AF37]/20 shadow-2xl">
-                                    <p className="text-[#D4AF37] text-[10px] font-black mb-1 uppercase tracking-widest">صافي الأرباح</p>
-                                    <h2 className="text-4xl font-black text-white tracking-tighter">${stats.net}</h2>
-                                    <div className="mt-6 flex gap-4">
-                                        <div className="flex-1 bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
-                                            <p className="text-[8px] text-emerald-500 font-black uppercase">المبيعات</p>
-                                            <p className="text-lg font-black text-emerald-400">${stats.rev}</p>
-                                        </div>
-                                        <div className="flex-1 bg-rose-500/5 p-3 rounded-xl border border-rose-500/10">
-                                            <p className="text-[8px] text-rose-500 font-black uppercase">المصروفات</p>
-                                            <p className="text-lg font-black text-rose-400">${stats.exp}</p>
-                                        </div>
+                            <div className="space-y-4">
+                                <div className="bg-[#0D1117] p-6 rounded-3xl border border-[#D4AF37]/30 shadow-xl">
+                                    <p className="text-[#D4AF37] text-[10px] font-black mb-1 uppercase">صافي الأرباح</p>
+                                    <h2 className="text-4xl font-black tracking-tighter">${stats.net}</h2>
+                                    <div className="grid grid-cols-2 gap-2 mt-4">
+                                        <div className="bg-white/5 p-3 rounded-xl"><p className="text-[8px] text-slate-500">مبيعات</p><p className="font-black text-emerald-400">${stats.totalRev}</p></div>
+                                        <div className="bg-white/5 p-3 rounded-xl"><p className="text-[8px] text-slate-500">مصاريف</p><p className="font-black text-rose-400">${stats.totalExp}</p></div>
                                     </div>
                                 </div>
-
-                                <div className="space-y-3">
-                                    <h3 className="text-xs font-black text-slate-500">سجل المصروفات</h3>
-                                    <div className="space-y-2">
-                                        {expenses.length === 0 ? <p className="text-center text-slate-700 text-xs py-4">لا يوجد بيانات</p> : 
-                                            expenses.map(ex => (
-                                                <div key={ex.id} className="bg-white/5 p-4 rounded-2xl flex justify-between border border-white/5">
-                                                    <div><p className="font-bold text-sm">{ex.title}</p><p className="text-[9px] text-slate-500">{ex.date?.split('T')[0]}</p></div>
-                                                    <div className="text-rose-400 font-black">-${ex.amount}</div>
-                                                </div>
-                                            ))
-                                        }
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                        <p className="text-2xl font-black">{stats.active}</p>
+                                        <p className="text-[9px] text-slate-500 font-bold">النشطين حالياً</p>
+                                    </div>
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                        <p className="text-2xl font-black">{stats.monthly}</p>
+                                        <p className="text-[9px] text-slate-500 font-bold">شهري</p>
+                                    </div>
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                        <p className="text-2xl font-black">{stats.threeMonths}</p>
+                                        <p className="text-[9px] text-slate-500 font-bold">3 أشهر</p>
+                                    </div>
+                                    <div className="bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
+                                        <p className="text-2xl font-black">{stats.yearly}</p>
+                                        <p className="text-[9px] text-slate-500 font-bold">سنوي</p>
                                     </div>
                                 </div>
                             </div>
                         ) : (
                             <div className="space-y-4">
+                                <input type="text" placeholder="ابحث بأي شيء (اسم، إيميل، يوزر، خدمة)..." className="w-full bg-[#0D1117] border border-white/10 p-4 rounded-xl text-sm font-bold" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} />
+                                <button onClick={() => setFilterUrgent(!filterUrgent)} className={`w-full p-3 rounded-xl text-[10px] font-black border transition-colors ${filterUrgent ? 'bg-rose-500 text-white' : 'bg-white/5 text-slate-500 border-white/5'}`}>فلترة: المتبقي 5 أيام أو أقل</button>
                                 <div className="space-y-3">
-                                    <input 
-                                        type="text" 
-                                        placeholder="بحث عن زبون..." 
-                                        className="w-full bg-[#0D1117] border border-white/10 p-4 rounded-xl outline-none focus:border-[#D4AF37] text-sm font-bold"
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                    />
-                                    <button 
-                                        onClick={() => setFilterUrgent(!filterUrgent)}
-                                        className={`w-full p-3 rounded-xl font-black text-[10px] transition-all border ${filterUrgent ? 'bg-rose-500 border-rose-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-slate-500'}`}
-                                    >
-                                        {filterUrgent ? 'عرض كل الاشتراكات' : 'عرض اشتراكات الـ 5 أيام الأخيرة فقط'}
-                                    </button>
-                                </div>
-
-                                <div className="grid gap-4">
                                     {filteredList.map(s => {
                                         const left = daysLeft(s.expiryDate);
                                         return (
-                                            <div key={s.id} className="bg-[#0D1117] p-5 rounded-[1.8rem] border border-white/5 relative">
-                                                <div className={`absolute top-4 left-4 w-2 h-2 rounded-full ${left <= 5 ? 'bg-rose-500 animate-ping' : 'bg-[#D4AF37]'}`}></div>
-                                                <div className="flex justify-between items-start mb-4">
+                                            <div key={s.id} className="bg-[#0D1117] p-5 rounded-2xl border border-white/5">
+                                                <div className="flex justify-between items-start mb-3">
                                                     <div>
-                                                        <h3 className="font-black text-white text-base">{s.name}</h3>
-                                                        <p className="text-xs text-[#D4AF37] font-bold">{s.service} • ${s.price}</p>
+                                                        <h3 className="font-black text-white">{s.name}</h3>
+                                                        <p className="text-[10px] text-[#D4AF37] font-bold">{s.service} • ${s.price}</p>
                                                     </div>
-                                                    <span className={`text-[9px] font-black px-2 py-1 rounded-md ${left <= 5 ? 'bg-rose-500/10 text-rose-500' : 'bg-blue-500/10 text-blue-400'}`}>
-                                                        {left <= 0 ? 'منتهي' : `${left} يوم متبقي`}
-                                                    </span>
+                                                    <span className={`text-[9px] font-black px-2 py-1 rounded ${left <= 5 ? 'bg-rose-500/20 text-rose-500' : 'bg-blue-500/20 text-blue-400'}`}>{left <= 0 ? 'منتهي' : `${left} يوم`}</span>
                                                 </div>
-                                                <div className="grid grid-cols-1 gap-1 text-[10px] text-slate-400 mb-4 bg-white/5 p-3 rounded-xl border border-white/5">
-                                                    {s.email && <p className="flex items-center gap-2"><Icon name="mail" size={12}/> {s.email}</p>}
-                                                    {s.contact && <p className="flex items-center gap-2 text-blue-400"><Icon name="message-circle" size={12}/> {s.contact}</p>}
-                                                    {s.socialLink && <p className="flex items-center gap-2 text-indigo-400"><Icon name="instagram" size={12}/> {s.socialLink}</p>}
-                                                    <p className="flex items-center gap-2 opacity-50"><Icon name="clock" size={12}/> تنتهي: {s.expiryDate}</p>
+                                                <div className="text-[10px] text-slate-400 space-y-1 mb-4 bg-black/20 p-3 rounded-xl">
+                                                    {s.email && <p>📧 {s.email}</p>}
+                                                    {s.contact && <p>📱 {s.contact}</p>}
                                                 </div>
                                                 <div className="flex gap-2">
                                                     <button onClick={() => {
-                                                        const clean = s.contact?.replace('@','') || '';
-                                                        const msg = `أهلاً بك في أرين ستور، تذكير لتجديد ${s.service}. ينتهي في ${s.expiryDate}`;
-                                                        if(/^\d+$/.test(clean)) window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`);
-                                                        else if(clean) window.open(`https://t.me/${clean}`);
-                                                        else alert("وسيلة التواصل غير متوفرة");
-                                                    }} className="flex-1 bg-[#D4AF37]/10 text-[#D4AF37] py-2.5 rounded-lg font-black text-[10px] active-scale flex items-center justify-center gap-2">
-                                                        <Icon name="bell" size={12}/> تذكير
-                                                    </button>
-                                                    <button onClick={() => { setForm(s); setEditingItem(s); setIsModalOpen(true); }} className="p-2.5 bg-white/5 rounded-lg text-slate-400 active-scale"><Icon name="edit-2" size={14}/></button>
-                                                    <button onClick={() => { if(confirm('حذف؟')) deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'subs', s.id)) }} className="p-2.5 bg-rose-500/10 rounded-lg text-rose-500 active-scale"><Icon name="trash-2" size={14}/></button>
+                                                        const clean = s.contact?.replace('@','');
+                                                        const msg = `تذكير تجديد ${s.service}. ينتهي في ${s.expiryDate}`;
+                                                        if(/^\d+$/.test(clean)) window.open(`https://wa.me/${clean}?text=${msg}`); else window.open(`https://t.me/${clean}`);
+                                                    }} className="flex-1 bg-[#D4AF37]/10 text-[#D4AF37] py-2 rounded-lg font-black text-[10px]">تذكير</button>
+                                                    <button onClick={() => { setForm(s); setEditingItem(s); setIsModalOpen(true); }} className="p-2 bg-white/5 rounded-lg text-slate-400"><Icon name="edit" size={14}/></button>
+                                                    <button onClick={() => deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'subs', s.id))} className="p-2 bg-rose-500/10 rounded-lg text-rose-500"><Icon name="trash" size={14}/></button>
                                                 </div>
                                             </div>
                                         )
@@ -249,58 +215,52 @@
                     </main>
 
                     <nav className="fixed bottom-0 left-0 right-0 glass-nav border-t border-white/5 flex justify-around p-4 safe-bottom z-50">
-                        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-[#D4AF37]' : 'text-slate-600'}`}>
-                            <Icon name="layout-grid" size={22} />
-                            <span className="text-[9px] font-black uppercase">الرئيسية</span>
+                        <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 ${activeTab === 'dashboard' ? 'text-[#D4AF37]' : 'text-slate-600'}`}>
+                            <Icon name="bar-chart" />
+                            <span className="text-[10px] font-black uppercase">الإحصائيات</span>
                         </button>
-                        <button onClick={() => setActiveTab('subs')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'subs' ? 'text-[#D4AF37]' : 'text-slate-600'}`}>
-                            <Icon name="users" size={22} />
-                            <span className="text-[9px] font-black uppercase">الزبائن</span>
+                        <button onClick={() => setActiveTab('subs')} className={`flex flex-col items-center gap-1 ${activeTab === 'subs' ? 'text-[#D4AF37]' : 'text-slate-600'}`}>
+                            <Icon name="users" />
+                            <span className="text-[10px] font-black uppercase">المشتركين</span>
                         </button>
                     </nav>
 
-                    {/* Modal Sub */}
                     {isModalOpen && (
                         <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col justify-end">
-                            <div className="bg-[#0D1117] rounded-t-[2.5rem] p-6 space-y-4 animate-in slide-in-from-bottom-full border-t border-[#D4AF37]/20">
-                                <h2 className="text-lg font-black text-center text-white italic">AREN <span className="text-[#D4AF37]">FORM</span></h2>
-                                <form onSubmit={saveSub} className="space-y-3 max-h-[70vh] overflow-y-auto px-1 pb-10">
-                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-bold text-sm" placeholder="اسم الزبون" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
-                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-bold text-sm" placeholder="إيميل الزبون (اختياري)" type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="تليجرام/رقم (اختياري)" value={form.contact} onChange={e=>setForm({...form, contact:e.target.value})} />
-                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="رابط حساب (اختياري)" value={form.socialLink} onChange={e=>setForm({...form, socialLink:e.target.value})} />
+                            <div className="bg-[#0D1117] rounded-t-[2.5rem] p-6 space-y-4">
+                                <h2 className="text-center font-black text-[#D4AF37]">بيانات المشترك</h2>
+                                <form onSubmit={handleSave} className="space-y-3 pb-8 max-h-[70vh] overflow-y-auto px-1">
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="الاسم" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} required />
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="الإيميل" type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="يوزر/هاتف" value={form.contact} onChange={e=>setForm({...form, contact:e.target.value})} />
+                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="سوشيال" value={form.socialLink} onChange={e=>setForm({...form, socialLink:e.target.value})} />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-xl text-emerald-400 font-black text-sm" placeholder="السعر $" type="number" value={form.price} onChange={e=>setForm({...form, price:e.target.value})} required />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="السعر $" type="number" value={form.price} onChange={e=>setForm({...form, price:e.target.value})} required />
                                         <select className="bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" value={form.plan} onChange={e=>setForm({...form, plan:e.target.value})}>
                                             <option value="monthly">شهر</option>
+                                            <option value="3months">3 أشهر</option>
                                             <option value="yearly">سنة</option>
-                                            <option value="custom">أيام مخصصة</option>
+                                            <option value="custom">مخصص</option>
                                         </select>
                                     </div>
-                                    {form.plan === 'custom' && (
-                                        <input className="w-full bg-[#D4AF37]/5 border border-[#D4AF37]/20 p-4 rounded-xl text-[#D4AF37] font-black text-sm" type="number" placeholder="أدخل عدد الأيام" value={form.customDays} onChange={e=>setForm({...form, customDays:e.target.value})} required />
-                                    )}
-                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-bold text-sm" placeholder="نوع الخدمة" value={form.service} onChange={e=>setForm({...form, service:e.target.value})} required />
-                                    <button className="w-full bg-[#D4AF37] text-black py-4 rounded-xl font-black text-base active-scale">حفظ البيانات</button>
-                                    <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-slate-600 font-bold text-xs py-2">إلغاء</button>
+                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="الخدمة" value={form.service} onChange={e=>setForm({...form, service:e.target.value})} required />
+                                    <button className="w-full bg-[#D4AF37] text-black py-4 rounded-xl font-black">حفظ</button>
+                                    <button type="button" onClick={()=>setIsModalOpen(false)} className="w-full text-slate-600 text-xs">إلغاء</button>
                                 </form>
                             </div>
                         </div>
                     )}
 
-                    {/* Modal Expense */}
                     {isExpenseModalOpen && (
                         <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col justify-center p-6">
-                            <div className="bg-[#0D1117] rounded-[2rem] p-6 border border-rose-500/20 space-y-4">
-                                <h2 className="text-base font-black text-rose-500 text-center uppercase">إضافة مصروف</h2>
-                                <form onSubmit={addExpense} className="space-y-3">
-                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="البيان (مثلاً: سيرفر)" value={expForm.title} onChange={e=>setExpForm({...expForm, title:e.target.value})} required />
-                                    <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white font-black" placeholder="المبلغ $" type="number" value={expForm.amount} onChange={e=>setExpForm({...expForm, amount:e.target.value})} required />
-                                    <button className="w-full bg-rose-500 text-white py-4 rounded-xl font-black active-scale">تأكيد الخصم</button>
-                                    <button type="button" onClick={() => setIsExpenseModalOpen(false)} className="w-full text-slate-500 font-bold text-xs">رجوع</button>
-                                </form>
+                            <div className="bg-[#0D1117] rounded-3xl p-6 border border-rose-500/20 space-y-4">
+                                <h2 className="text-center font-black text-rose-500 uppercase">إضافة مصروف</h2>
+                                <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="البيان" value={expForm.title} onChange={e=>setExpForm({...expForm, title:e.target.value})} />
+                                <input className="w-full bg-white/5 border border-white/10 p-4 rounded-xl text-white text-sm" placeholder="المبلغ" type="number" value={expForm.amount} onChange={e=>setExpForm({...expForm, amount:e.target.value})} />
+                                <button onClick={async()=>{await addDoc(collection(db,'artifacts',APP_ID,'public','data','expenses'),{...expForm,date:new Date().toISOString()}); setIsExpenseModalOpen(false);}} className="w-full bg-rose-500 text-white py-4 rounded-xl font-black">خصم</button>
+                                <button onClick={()=>setIsExpenseModalOpen(false)} className="w-full text-slate-500 text-xs">رجوع</button>
                             </div>
                         </div>
                     )}
